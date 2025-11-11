@@ -136,54 +136,63 @@ def role_to_bucket(role:str)->str:
 # ----------------------------
 ELITE_SPECS_BASE = {
     "Guardian": {
+        "Core": {"roles": ["DPS"], "tier": "C"},
         "Dragonhunter": {"roles": ["DPS"], "tier": "A"},
         "Firebrand": {"roles": ["Primary Support"], "tier": "S+"},
         "Willbender": {"roles": ["DPS"], "tier": "B"},
         "Luminary": {"roles": ["Primary Support"], "tier": "A"}
     },
     "Warrior": {
+        "Core": {"roles": ["DPS"], "tier": "C"},
         "Berserker": {"roles": ["DPS"], "tier": "B"},
         "Spellbreaker": {"roles": ["DPS"], "tier": "S"},
         "Bladesworn": {"roles": ["DPS"], "tier": "A"},
         "Paragon": {"roles": ["Utility"], "tier": "C"}
     },
     "Revenant": {
+        "Core": {"roles": ["DPS"], "tier": "C"},
         "Herald": {"roles": ["Tertiary Support"], "tier": "B"},
         "Renegade": {"roles": ["DPS"], "tier": "S"},
         "Vindicator": {"roles": ["DPS"], "tier": "A"},
         "Conduit": {"roles": ["Utility"], "tier": "C"}
     },
     "Engineer": {
+        "Core": {"roles": ["DPS"], "tier": "C"},
         "Scrapper": {"roles": ["Secondary Support"], "tier": "S"},
         "Holosmith": {"roles": ["DPS"], "tier": "S"},
         "Mechanist": {"roles": ["DPS"], "tier": "S"},
         "Amalgam": {"roles": ["DPS"], "tier": "B"}
     },
     "Ranger": {
+        "Core": {"roles": ["DPS"], "tier": "C"},
         "Druid": {"roles": ["Secondary Support"], "tier": "S"},
         "Soulbeast": {"roles": ["Tertiary Support"], "tier": "B"},
         "Untamed": {"roles": ["DPS"], "tier": "A"},
         "Galeshot": {"roles": ["Utility"], "tier": "C"}
     },
     "Thief": {
+        "Core": {"roles": ["DPS"], "tier": "C"},
         "Daredevil": {"roles": ["DPS"], "tier": "A"},
         "Deadeye": {"roles": ["Strip DPS"], "tier": "S+"},
         "Specter": {"roles": ["Secondary Support"], "tier": "S"},
         "Antiquary": {"roles": ["Utility"], "tier": "C"}
     },
     "Elementalist": {
+        "Core": {"roles": ["DPS"], "tier": "C"},
         "Tempest": {"roles": ["Secondary Support"], "tier": "S"},
         "Weaver": {"roles": ["DPS"], "tier": "S+"},
         "Catalyst": {"roles": ["Tertiary Support"], "tier": "S"},
         "Evoker": {"roles": ["Utility"], "tier": "C"}
     },
     "Mesmer": {
+        "Core": {"roles": ["DPS"], "tier": "C"},
         "Chronomancer": {"roles": ["Primary Support"], "tier": "S+"},
         "Mirage": {"roles": ["DPS"], "tier": "S"},
         "Virtuoso": {"roles": ["DPS"], "tier": "S"},
         "Troubadour": {"roles": ["Utility"], "tier": "B"}
     },
     "Necromancer": {
+        "Core": {"roles": ["DPS"], "tier": "C"},
         "Reaper": {"roles": ["DPS"], "tier": "S"},
         "Scourge": {"roles": ["Strip DPS"], "tier": "S+"},
         "Harbinger": {"roles": ["Tertiary Support"], "tier": "S"},
@@ -804,17 +813,20 @@ class ProceedButton(discord.ui.Button):
         await update_all_wvw_summaries(interaction.client)
 
 class WvWRoleSelectView(discord.ui.View):
-    """Dynamisk select + vänlig balans-prompt med per-användare cooldown + meta-exempel."""
+    """Rollväljare som bara visar roller tillåtna för vald klass/spec."""
     def __init__(self, selected_class: str, selected_spec: str):
         super().__init__(timeout=300)
         self.selected_class = selected_class
         self.selected_spec = selected_spec
 
-        options = [discord.SelectOption(label=role, value=role)
-                   for role in all_roles_for_select()]
+        # Hämta tillåtna roller från meta (inkl. overrides)
+        meta = get_spec_meta(self.selected_class, self.selected_spec)
+        self.allowed_roles = list(meta["roles"])  # t.ex. ["DPS"] eller ["Utility"]
 
+        # Bygg selecten ENBART från tillåtna roller
+        options = [discord.SelectOption(label=r, value=r) for r in self.allowed_roles]
         self.select = discord.ui.Select(
-            placeholder="Välj din WvW-roll...",
+            placeholder=f"Välj roll ({self.selected_class} · {self.selected_spec})...",
             options=options,
             custom_id="wvw_role_select"
         )
@@ -823,16 +835,23 @@ class WvWRoleSelectView(discord.ui.View):
             uid = interaction.user.id
             chosen_role = self.select.values[0]
 
+            # Säkerhet: blockera om någon lyckas välja något utanför tillåtna roller
+            if chosen_role not in self.allowed_roles:
+                await interaction.response.send_message(
+                    "❌ Ogiltigt val för denna specialization. Välj en roll från listan.",
+                    ephemeral=True
+                )
+                return
+
+            # --- Mjuk balans-prompt: visa endast om den saknade rollen tillhör allowed_roles ---
             now_ts = time.time()
             last = last_prompt.get(uid, 0)
             can_prompt = (now_ts - last) >= PROMPT_COOLDOWN_SECONDS
 
-            # Preview utan användarens val
             attending_wo_self = [(u, d) for (u, d) in wvw_rsvp_data.items() if d.get("attending") and u != uid]
             missing = preview_next_missing_role(attending_wo_self)
 
-            # Mjuk prompt med exempel på högst-tier meta
-            if can_prompt and missing and missing != chosen_role:
+            if can_prompt and missing and missing != chosen_role and (missing in self.allowed_roles):
                 last_prompt[uid] = now_ts
                 examples = best_specs_for_role(missing, limit=2)
                 ex_str = f" (t.ex. {', '.join(examples)})" if examples else ""
@@ -845,7 +864,7 @@ class WvWRoleSelectView(discord.ui.View):
                 )
                 return
 
-            # Spara direkt
+            # Spara RSVP med giltig roll
             wvw_rsvp_data[uid] = {
                 "attending": True,
                 "class": self.selected_class,
@@ -856,13 +875,12 @@ class WvWRoleSelectView(discord.ui.View):
             }
             save_wvw_rsvp_data()
 
-            meta = get_spec_meta(self.selected_class, self.selected_spec)
+            meta_now = get_spec_meta(self.selected_class, self.selected_spec)
             await interaction.response.send_message(
                 f"✅ Du kommer som **{self.selected_class} - {self.selected_spec}** "
-                f"(Tier {meta['tier']}) med roll **{chosen_role}** – tack!",
+                f"(Tier {meta_now['tier']}) med roll **{chosen_role}** – tack!",
                 ephemeral=True
             )
-            # Synka till alla kanaler
             await update_all_wvw_summaries(interaction.client)
 
         self.select.callback = _on_select
