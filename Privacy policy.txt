@@ -1,0 +1,86 @@
+Commander Livia – Privacy Policy
+
+Last updated: November 2025
+
+1. Overview
+
+Commander Livia (“the Bot”, “the Service”) is a Discord bot developed and maintained by Tim Palm.
+This Privacy Policy explains what information is collected, how it is used, and your rights regarding that information.
+
+2. Data Collected
+
+Commander Livia stores only minimal data necessary for functionality related to event participation and squad organization.
+
+The following information may be stored locally on the bot host:
+
+Discord User ID (unique numeric identifier)
+
+Discord display name (as shown in the server)
+
+RSVP status (attending / not attending)
+
+Selected class, elite specialization, and role for WvW or PvE events
+
+Timestamps for when you last interacted with the bot
+
+No additional data such as messages, email addresses, or IP addresses are stored or tracked.
+
+3. Purpose of Data
+
+The collected data is used solely to:
+
+Display RSVP lists and event summaries
+
+Build and analyze WvW squad compositions
+
+Export or report event statistics on command (for admin users only)
+
+Maintain event participation between bot restarts
+
+The data is never shared, sold, or used for advertising.
+
+4. Data Storage
+
+All data is stored locally on the server running Commander Livia, typically in small JSON files (or a future SQLite database).
+There is no external or cloud-based database connection.
+Server owners are responsible for maintaining the security of their own environment.
+
+5. Data Retention
+
+RSVP data is automatically deleted after a defined period (default: 7 days) of inactivity.
+Admins may also reset or clear data manually via bot commands (/event reset, /wvw_event reset, etc.).
+
+6. Your Rights
+
+You have the right to:
+
+Request that your data be deleted from the bot’s local storage
+
+Revoke consent by removing the bot from a server
+
+Contact the developer for clarification or manual removal of stored data
+
+Requests can be made by messaging the bot owner directly or via the official support channels.
+
+7. Third Parties
+
+Commander Livia does not use third-party analytics, tracking tools, or external APIs that transmit personal data.
+Only the official Discord API is used, following Discord’s Developer Terms
+.
+
+8. Security
+
+All data operations are handled locally and securely.
+The developer applies reasonable technical and administrative measures to protect against unauthorized access, corruption, or misuse of data.
+
+9. Policy Changes
+
+This Privacy Policy may be updated over time to reflect feature changes or compliance requirements.
+Users are encouraged to review it periodically. The “Last updated” date at the top will indicate any revisions.
+
+10. Contact
+
+For questions or data deletion requests, contact:
+Developer: Tim Palm (“Commander Livia Dev”)
+Discord: via direct message or the official support server
+GitHub: [link to your repository or issues page]

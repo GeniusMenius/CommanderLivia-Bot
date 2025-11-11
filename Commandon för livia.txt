@@ -1,0 +1,91 @@
+Commander Livia – Kommandoguide (snabböversikt)
+Senast uppdaterad: 2025-11-11
+Teckenförklaring
+• Slash-kommandon körs i en kanal: /kommando
+• Prefixkommandon körs med utropstecken: !kommando
+• (Admin) = kräver admin-behörighet
+Allmänna flöden
+
+
+Starta ett vanligt event i en kanal:
+/event action:start name:"Fredags-raid"
+→ Botten postar RSVP-knappar + sammanfattning.
+
+
+Starta ett WvW-event i en kanal:
+/wvw_event action:start wvw_name:"WvW Reset"
+
+
+Lägg till fler kanaler i pågående event:
+/event action:add_channel
+/wvw_event action:add_channel
+
+
+Användare klickar på knappar (Ja/Nej). WvW: klass → spec → roll.
+
+
+Visa analyser och listor:
+/squad_analyze  (balanserade squads + overflow + vad som saknas)
+/rsvp_list      (alla deltagare, legacy + WvW)
+/rsvp_status    (snabb status)
+
+
+Admin & setup
+/event (Admin)
+• action:start – startar vanligt event i denna kanal (param: name valfritt)
+• action:add_channel – kopplar denna kanal till eventet (visar samma sammanfattning här)
+• action:remove_channel – tar bort denna kanal från eventet (tar bort sammanfattningsinlägg)
+• action:reset – nollställer legacy-RSVP-data
+• action:export – exporterar legacy-RSVP till CSV (som fil)
+Relaterat:
+/event_clear_all (Admin) – tar bort sammanfattningar i alla kanaler och nollställer all legacy-RSVP.
+/wvw_event (Admin)
+• action:start – startar WvW-event i denna kanal (param: wvw_name valfritt)
+• action:add_channel – kopplar denna kanal till WvW-event
+• action:remove_channel – tar bort denna kanal från WvW-event
+• action:reset – nollställer WvW-RSVP
+Relaterat:
+/wvw_event_clear_all (Admin) – tar bort WvW-sammanfattningar i alla kanaler och nollställer all WvW-RSVP.
+/setupbuilds (Admin)
+• Öppnar DM-setup för att justera Roles och Tier (S+/S/A/B/C) per klass/spec
+• Skapa egna roller och mappa till bucket (Utility m.m.)
+/meta_bulk_dm (Admin)
+• Skickar CSV via DM med alla builds (Class, Spec, Tier, Roles) för snabb redigering
+/meta_bulk_import (Admin)
+• Ladda upp CSV från /meta_bulk_dm för att uppdatera Tier och Roles i bulk
+• Kolumner: Class, Spec, Tier, Roles (separerade med |)
+• Roller måste finnas i all_roles_for_select (inkl. egna roller). Fel/varningar visas.
+/meta_export (Admin) – skickar meta_overrides.json som fil
+/meta_reset (Admin) – tar bort alla meta-overrides (återgår till basmeta)
+Analys & statistik
+/squad_analyze
+• Visar balanserade squads (max 10), global Commander, overflow, orsak (cap/obalans) + exempel på specs
+/show_stats
+• Snabb statistik: attending, totalt registrerade, fördelning per roll och per klass
+RSVP & listor
+/rsvp_status (ephemeral) – snabb status (attending/total) för legacy + WvW
+/rsvp_list [only_attending:bool=false] – listor för legacy + WvW; sätt true för att dölja “Kommer inte”
+Debug/underhåll
+!sync (Admin)
+• Synkar både globalt och till DISCORD_GUILD_ID (spegel till guild för omedelbar åtkomst)
+!clear_commands (Admin)
+• Rensar alla registrerade slash-kommandon globalt (kör sedan !sync igen vid behov)
+Knappar & interaktiva vyer
+• RSVP (legacy): “Ja, jag kommer” → välj klass/roll. “Nej, jag kommer inte” sparar nej.
+• WvW-RSVP: “Ja, jag kommer” → klass → elite spec → roll. Vänlig prompt kan föreslå rollbyte om nästa squad saknar t.ex. support (per-användare cooldown).
+Filer & lagring
+• rsvp_data.json – legacy-RSVP
+• wvw_rsvp_data.json – WvW-RSVP
+• summary_channels.json – kanal→meddelande-ID (legacy)
+• wvw_summary_channels.json – kanal→meddelande-ID (WvW)
+• meta_overrides.json – overrides för roller/tier
+• roles_overrides.json – egna roller + bucket
+• squad_templates.json – templates för 5-mannasquads (valfritt)
+Miljövariabler
+• DISCORD_TOKEN – krävs för start
+• DISCORD_GUILD_ID – om satt: guild som får omedelbar spegling av globala kommandon
+• AUTO_CLEAN_DAYS – dagar innan inaktiva RSVP rensas (default 7)
+Tips
+• Behåll kommandon globala för bred åtkomst, använd !sync för snabb guild-mirror vid test.
+• Se till att botten är inbjuden med scopet “applications.commands”.
+• Om kommandon inte syns: kör !sync och kontrollera DISCORD_GUILD_ID.

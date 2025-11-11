@@ -1,0 +1,57 @@
+Commander Livia – Terms of Service
+
+Last updated: November 2025
+
+1. Acceptance of Terms
+
+By adding, installing, or using Commander Livia (“the Bot”, “the Service”), you agree to comply with and be bound by these Terms of Service. If you do not agree, you may not use or host the bot.
+
+2. Description of Service
+
+Commander Livia is a Discord bot designed to help organize Guild Wars 2 events, coordinate WvW squads, and manage RSVP participation through interactive menus and automated summaries.
+
+3. Data and Privacy
+
+The bot stores minimal user data necessary to function, including:
+
+Discord user ID and display name
+
+Event participation status and chosen in-game roles
+
+No sensitive data is collected or shared. You may request data removal at any time by contacting the bot owner or removing the bot from your server.
+
+4. Usage Guidelines
+
+By using Commander Livia, you agree to:
+
+Follow Discord’s Terms of Service
+ and Community Guidelines
+.
+
+Use the bot in a respectful and non-abusive manner.
+
+Avoid modifying, redistributing, or selling Commander Livia without explicit permission from the developer.
+
+5. Restricted Use
+
+Commander Livia may not be used by, or in communities representing, promoting, or affiliated with:
+
+Donald J. Trump or his political organizations.
+
+Vladimir Putin or entities under his direct or indirect control.
+
+Neo-Nazi, fascist, or hate-based groups or individuals.
+
+The developer reserves the right to deny service or blacklist servers, users, or organizations that violate this clause.
+
+6. Liability and Disclaimer
+
+Commander Livia is provided “as is” without any warranties or guarantees of uptime, accuracy, or reliability. The developer assumes no responsibility for any loss, damage, or data corruption resulting from use of the bot.
+
+7. Updates and Modifications
+
+These Terms may be updated at any time. Continued use of the bot after changes constitutes acceptance of the new Terms.
+
+8. Contact
+
+For questions, issues, or data removal requests, contact the developer (Tim Palm / “Commander Livia Dev”) through the official support server or GitHub repository.
