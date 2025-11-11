@@ -655,6 +655,7 @@ class WvWRSVPView(discord.ui.View):
             klass = curr.get("class") or "Okänd klass"
             spec  = curr.get("elite_spec") or "okänd spec"
             role  = curr.get("wvw_role") or "okänd roll"
+
             await interaction.response.send_message(
                 f"✅ Du är anmäld som **{klass} - {spec}** med roll **{role}**.\n"
                 f"Vill du ändra? Välj klass → spec → roll:",
@@ -667,7 +668,6 @@ class WvWRSVPView(discord.ui.View):
 
         # Första gången → normalt flöde
         await interaction.response.send_message("Välj din klass:", view=WvWClassSelectView(), ephemeral=True)
-
 
 # Legacy Views
 class ClassSelectView(discord.ui.View):
