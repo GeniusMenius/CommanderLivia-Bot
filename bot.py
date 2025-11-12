@@ -1879,6 +1879,8 @@ class AdminWvWRoleView(discord.ui.View):
         if interaction.user.id != self.editor.id:
             await interaction.response.send_message("🚫 Endast editor kan använda denna meny.", ephemeral=True)
             return
+        # Defera direkt så interaktionen inte timeoutar
+        await interaction.response.defer()
         role = self.role_select.values[0]
         await self._save(interaction, role)
 
@@ -1893,11 +1895,16 @@ class AdminWvWRoleView(discord.ui.View):
             "updated_at": now_utc_iso()
         }
         save_wvw_rsvp_data()
+
+        # Gör tunga uppdateringar efter defer
         await update_all_wvw_summaries(interaction.client)
 
         det = (f"Klass: **{self.klass}** · Spec: **{self.spec}** · Roll: **{role}**"
                if self.attending else "Markerad som 'kommer inte'")
-        await interaction.response.edit_message(
+
+        # Viktigt: followup.edit_message istället för response.edit_message
+        await interaction.followup.edit_message(
+            message_id=interaction.message.id,
             content=f"✅ **WvW uppdaterad för {self.target.mention}**\n{det}",
             view=None
         )
@@ -1917,9 +1924,10 @@ class AdminWvWSaveButton(discord.ui.Button):
         if interaction.user.id != self.editor.id:
             await interaction.response.send_message("🚫 Endast editor kan använda denna knapp.", ephemeral=True)
             return
+        # Defera direkt, spara sedan via samma helper
+        await interaction.response.defer()
         view = AdminWvWRoleView(self.editor, self.target, self.attending, self.klass, self.spec, [])
         await view._save(interaction, self.role)
-
 
 # ----- Slash command: /rsvp_edit -----
 @bot.tree.command(name="rsvp_edit", description="(Admin) Redigera en spelares RSVP via DM med dropdown-menyer")
