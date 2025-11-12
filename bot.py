@@ -1635,6 +1635,318 @@ async def show_stats(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed, ephemeral=False)
 
+
+# ----------------------------
+# ADMIN: RSVP Edit (DM med dropdowns)
+# ----------------------------
+class AdminEditStartView(discord.ui.View):
+    def __init__(self, editor: discord.User, target: discord.User):
+        super().__init__(timeout=600)
+        self.editor = editor
+        self.target = target
+
+        # Event-typ
+        self.event_select = discord.ui.Select(
+            placeholder="Välj eventtyp...",
+            options=[
+                discord.SelectOption(label="Legacy (vanligt event)", value="legacy", emoji="🎉"),
+                discord.SelectOption(label="WvW", value="wvw", emoji="🛡️"),
+            ],
+            min_values=1, max_values=1, custom_id="admin_edit_event_type"
+        )
+
+        # Attending
+        self.att_select = discord.ui.Select(
+            placeholder="Attending?",
+            options=[
+                discord.SelectOption(label="Ja (attending=True)", value="yes", emoji="✅"),
+                discord.SelectOption(label="Nej (attending=False)", value="no", emoji="❌"),
+            ],
+            min_values=1, max_values=1, custom_id="admin_edit_attending"
+        )
+
+        async def on_event_select(interaction: discord.Interaction):
+            if interaction.user.id != self.editor.id:
+                await interaction.response.send_message("🚫 Endast editor kan använda denna meny.", ephemeral=True)
+                return
+            await interaction.response.defer()
+
+        async def on_att_select(interaction: discord.Interaction):
+            if interaction.user.id != self.editor.id:
+                await interaction.response.send_message("🚫 Endast editor kan använda denna meny.", ephemeral=True)
+                return
+            await interaction.response.defer()
+
+        self.event_select.callback = on_event_select
+        self.att_select.callback = on_att_select
+
+        self.add_item(self.event_select)
+        self.add_item(self.att_select)
+        self.add_item(AdminProceedButton(self.editor, self.target, self.event_select, self.att_select))
+
+
+class AdminProceedButton(discord.ui.Button):
+    def __init__(self, editor: discord.User, target: discord.User, event_select: discord.ui.Select, att_select: discord.ui.Select):
+        super().__init__(label="Fortsätt", style=discord.ButtonStyle.primary)
+        self.editor = editor
+        self.target = target
+        self.event_select = event_select
+        self.att_select = att_select
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.editor.id:
+            await interaction.response.send_message("🚫 Endast editor kan använda denna knapp.", ephemeral=True)
+            return
+
+        chosen_event = (self.event_select.values[0] if self.event_select.values else None)
+        chosen_att = (self.att_select.values[0] if self.att_select.values else None)
+        if not chosen_event or not chosen_att:
+            await interaction.response.send_message("⚠️ Välj både eventtyp och attending först.", ephemeral=True)
+            return
+
+        attending_flag = (chosen_att == "yes")
+
+        if chosen_event == "legacy":
+            # Gå till Legacy-edit
+            await interaction.response.edit_message(
+                content=f"**Legacy RSVP** för {self.target.mention} · Attending: {'✅' if attending_flag else '❌'}\nVälj klass:",
+                view=AdminLegacyClassView(self.editor, self.target, attending_flag)
+            )
+        else:
+            # Gå till WvW-edit (klass -> spec -> roll)
+            await interaction.response.edit_message(
+                content=f"**WvW RSVP** för {self.target.mention} · Attending: {'✅' if attending_flag else '❌'}\nVälj klass:",
+                view=AdminWvWClassView(self.editor, self.target, attending_flag)
+            )
+
+
+# ----- Legacy flow -----
+class AdminLegacyClassView(discord.ui.View):
+    def __init__(self, editor: discord.User, target: discord.User, attending: bool):
+        super().__init__(timeout=600)
+        self.editor = editor
+        self.target = target
+        self.attending = attending
+
+        self.class_select = discord.ui.Select(
+            placeholder="Välj klass...",
+            options=[discord.SelectOption(label=cls, value=cls) for cls in CLASSES],
+            min_values=1, max_values=1, custom_id="admin_legacy_class"
+        )
+
+        async def on_class(interaction: discord.Interaction):
+            if interaction.user.id != self.editor.id:
+                await interaction.response.send_message("🚫 Endast editor kan använda denna meny.", ephemeral=True)
+                return
+            klass = self.class_select.values[0]
+            await interaction.response.edit_message(
+                content=f"**Legacy RSVP** för {self.target.mention}\nKlass: **{klass}** · Attending: {'✅' if self.attending else '❌'}\nVälj roll:",
+                view=AdminLegacyRoleView(self.editor, self.target, self.attending, klass)
+            )
+
+        self.class_select.callback = on_class
+        self.add_item(self.class_select)
+
+
+class AdminLegacyRoleView(discord.ui.View):
+    def __init__(self, editor: discord.User, target: discord.User, attending: bool, klass: str):
+        super().__init__(timeout=600)
+        self.editor = editor
+        self.target = target
+        self.attending = attending
+        self.klass = klass
+
+        self.role_select = discord.ui.Select(
+            placeholder="Välj roll...",
+            options=[discord.SelectOption(label=r, value=r) for r in ROLES],
+            min_values=1, max_values=1, custom_id="admin_legacy_role"
+        )
+
+        async def on_role(interaction: discord.Interaction):
+            if interaction.user.id != self.editor.id:
+                await interaction.response.send_message("🚫 Endast editor kan använda denna meny.", ephemeral=True)
+                return
+            role = self.role_select.values[0]
+
+            # Spara legacy
+            uid = self.target.id
+            rsvp_data[uid] = {
+                "attending": self.attending,
+                "class": self.klass if self.attending else None,
+                "role": role if self.attending else None,
+                "display_name": self.target.display_name,
+                "updated_at": now_utc_iso()
+            }
+            save_rsvp_data()
+            await update_all_event_summaries(interaction.client)
+
+            await interaction.response.edit_message(
+                content=(f"✅ **Legacy uppdaterad för {self.target.mention}**\n"
+                         f"Attending: {'✅' if self.attending else '❌'} · "
+                         f"{('Klass: **'+self.klass+'** · Roll: **'+role+'**') if self.attending else 'Ingen klass/roll sparad'}"),
+                view=None
+            )
+
+        self.role_select.callback = on_role
+        self.add_item(self.role_select)
+
+
+# ----- WvW flow (class -> spec -> allowed roles) -----
+class AdminWvWClassView(discord.ui.View):
+    def __init__(self, editor: discord.User, target: discord.User, attending: bool):
+        super().__init__(timeout=600)
+        self.editor = editor
+        self.target = target
+        self.attending = attending
+
+        self.class_select = discord.ui.Select(
+            placeholder="Välj klass...",
+            options=[discord.SelectOption(label=cls, value=cls) for cls in CLASSES],
+            min_values=1, max_values=1, custom_id="admin_wvw_class"
+        )
+
+        async def on_class(interaction: discord.Interaction):
+            if interaction.user.id != self.editor.id:
+                await interaction.response.send_message("🚫 Endast editor kan använda denna meny.", ephemeral=True)
+                return
+            klass = self.class_select.values[0]
+            specs = list(ELITE_SPECS_BASE.get(klass, {}).keys())
+            await interaction.response.edit_message(
+                content=f"**WvW RSVP** för {self.target.mention}\nKlass: **{klass}** · Attending: {'✅' if self.attending else '❌'}\nVälj elite spec:",
+                view=AdminWvWSpecView(self.editor, self.target, self.attending, klass, specs)
+            )
+
+        self.class_select.callback = on_class
+        self.add_item(self.class_select)
+
+
+class AdminWvWSpecView(discord.ui.View):
+    def __init__(self, editor: discord.User, target: discord.User, attending: bool, klass: str, specs: list[str]):
+        super().__init__(timeout=600)
+        self.editor = editor
+        self.target = target
+        self.attending = attending
+        self.klass = klass
+
+        self.spec_select = discord.ui.Select(
+            placeholder="Välj elite spec...",
+            options=[discord.SelectOption(label=s, value=s) for s in specs],
+            min_values=1, max_values=1, custom_id="admin_wvw_spec"
+        )
+
+        async def on_spec(interaction: discord.Interaction):
+            if interaction.user.id != self.editor.id:
+                await interaction.response.send_message("🚫 Endast editor kan använda denna meny.", ephemeral=True)
+                return
+            spec = self.spec_select.values[0]
+            meta = get_spec_meta(self.klass, spec)
+            allowed_roles = list(meta["roles"]) if self.attending else ["—"]
+
+            await interaction.response.edit_message(
+                content=(f"**WvW RSVP** för {self.target.mention}\n"
+                         f"Klass: **{self.klass}** · Spec: **{spec}** · Attending: {'✅' if self.attending else '❌'}\n"
+                         f"{'Välj roll:' if self.attending else 'Sparar som “inte kommer”…'}"),
+                view=AdminWvWRoleView(self.editor, self.target, self.attending, self.klass, spec, allowed_roles)
+            )
+
+        self.spec_select.callback = on_spec
+        self.add_item(self.spec_select)
+
+
+class AdminWvWRoleView(discord.ui.View):
+    def __init__(self, editor: discord.User, target: discord.User, attending: bool, klass: str, spec: str, allowed_roles: list[str]):
+        super().__init__(timeout=600)
+        self.editor = editor
+        self.target = target
+        self.attending = attending
+        self.klass = klass
+        self.spec = spec
+        self.allowed_roles = allowed_roles
+
+        # Om attending=False tillåter vi inte roll-val; vi avslutar direkt vid spar
+        if self.attending:
+            self.role_select = discord.ui.Select(
+                placeholder="Välj roll...",
+                options=[discord.SelectOption(label=r, value=r) for r in self.allowed_roles],
+                min_values=1, max_values=1, custom_id="admin_wvw_role"
+            )
+            self.role_select.callback = self.on_role
+            self.add_item(self.role_select)
+        else:
+            self.add_item(AdminWvWSaveButton(self.editor, self.target, self.attending, self.klass, self.spec, None))
+
+    async def on_role(self, interaction: discord.Interaction):
+        if interaction.user.id != self.editor.id:
+            await interaction.response.send_message("🚫 Endast editor kan använda denna meny.", ephemeral=True)
+            return
+        role = self.role_select.values[0]
+        await self._save(interaction, role)
+
+    async def _save(self, interaction: discord.Interaction, role: str | None):
+        uid = self.target.id
+        wvw_rsvp_data[uid] = {
+            "attending": self.attending,
+            "class": self.klass if self.attending else None,
+            "elite_spec": self.spec if self.attending else None,
+            "wvw_role": role if (self.attending and role) else None,
+            "display_name": self.target.display_name,
+            "updated_at": now_utc_iso()
+        }
+        save_wvw_rsvp_data()
+        await update_all_wvw_summaries(interaction.client)
+
+        det = (f"Klass: **{self.klass}** · Spec: **{self.spec}** · Roll: **{role}**"
+               if self.attending else "Markerad som 'kommer inte'")
+        await interaction.response.edit_message(
+            content=f"✅ **WvW uppdaterad för {self.target.mention}**\n{det}",
+            view=None
+        )
+
+
+class AdminWvWSaveButton(discord.ui.Button):
+    def __init__(self, editor: discord.User, target: discord.User, attending: bool, klass: str, spec: str, role: str | None):
+        super().__init__(label="Spara", style=discord.ButtonStyle.success)
+        self.editor = editor
+        self.target = target
+        self.attending = attending
+        self.klass = klass
+        self.spec = spec
+        self.role = role
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.editor.id:
+            await interaction.response.send_message("🚫 Endast editor kan använda denna knapp.", ephemeral=True)
+            return
+        view = AdminWvWRoleView(self.editor, self.target, self.attending, self.klass, self.spec, [])
+        await view._save(interaction, self.role)
+
+
+# ----- Slash command: /rsvp_edit -----
+@bot.tree.command(name="rsvp_edit", description="(Admin) Redigera en spelares RSVP via DM med dropdown-menyer")
+@app_commands.describe(
+    user="Spelaren du vill redigera",
+)
+async def rsvp_edit(interaction: discord.Interaction, user: discord.User):
+    # Adminkontroll
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("🚫 Du måste vara admin för att använda detta.", ephemeral=True)
+        return
+
+    # Skicka DM
+    try:
+        await interaction.response.send_message("📩 Öppnar en DM till dig med edit-verktyg…", ephemeral=True)
+        dm = await interaction.user.create_dm()
+        await dm.send(
+            content=(f"**RSVP Edit**\nMål: {user.mention}\n"
+                     "Välj eventtyp och attending för att fortsätta:"),
+            view=AdminEditStartView(editor=interaction.user, target=user)
+        )
+    except Exception as e:
+        logger.error(f"RSVP Edit DM error: {e}")
+        await interaction.followup.send("❌ Kunde inte skicka DM. Har du DM-block på?", ephemeral=True)
+
+
+
 # ----------------------------
 # RSVP / LISTOR
 # ----------------------------
