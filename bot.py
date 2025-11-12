@@ -620,11 +620,10 @@ class RSVPView(discord.ui.View):
     async def yes_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         uid = interaction.user.id
         if uid in rsvp_data and rsvp_data[uid]["attending"]:
-            # Uppdatera tidsstämpel och spara
+
             rsvp_data[uid]["updated_at"] = now_utc_iso()
             save_rsvp_data()
 
-            # Ge faktiska val att ändra
             curr = rsvp_data.get(uid, {})
             if curr.get("class"):
                 await interaction.response.send_message(
@@ -639,12 +638,25 @@ class RSVPView(discord.ui.View):
                     view=ClassSelectView(),
                     ephemeral=True
                 )
-            # Synka till alla kanaler
+
             await update_all_event_summaries(interaction.client)
             return
 
-        # Första gången → normalt flöde
         await interaction.response.send_message("Välj din klass:", view=ClassSelectView(), ephemeral=True)
+
+    @discord.ui.button(label="Nej, jag kommer inte", style=discord.ButtonStyle.danger, custom_id="rsvp_no_button")
+    async def no_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        uid = interaction.user.id
+        rsvp_data[uid] = {
+            "attending": False,
+            "class": None,
+            "role": None,
+            "display_name": interaction.user.display_name,
+            "updated_at": now_utc_iso()
+        }
+        save_rsvp_data()
+        await interaction.response.send_message("❌ Okej! Markerat att du **inte kommer**.", ephemeral=True)
+        await update_all_event_summaries(interaction.client)
 
 
 class WvWRSVPView(discord.ui.View):
@@ -655,11 +667,10 @@ class WvWRSVPView(discord.ui.View):
     async def yes_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         uid = interaction.user.id
         if uid in wvw_rsvp_data and wvw_rsvp_data[uid]["attending"]:
-            # Uppdatera tidsstämpel och spara
+
             wvw_rsvp_data[uid]["updated_at"] = now_utc_iso()
             save_wvw_rsvp_data()
 
-            # Visa nuvarande val och ge möjlighet att ändra (klass → spec → roll)
             curr = wvw_rsvp_data.get(uid, {})
             klass = curr.get("class") or "Okänd klass"
             spec  = curr.get("elite_spec") or "okänd spec"
@@ -671,12 +682,25 @@ class WvWRSVPView(discord.ui.View):
                 view=WvWClassSelectView(),
                 ephemeral=True
             )
-            # Synka till alla kanaler
             await update_all_wvw_summaries(interaction.client)
             return
 
-        # Första gången → normalt flöde
         await interaction.response.send_message("Välj din klass:", view=WvWClassSelectView(), ephemeral=True)
+
+    @discord.ui.button(label="Nej, jag kommer inte", style=discord.ButtonStyle.danger, custom_id="wvw_rsvp_no_button")
+    async def no_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        uid = interaction.user.id
+        wvw_rsvp_data[uid] = {
+            "attending": False,
+            "class": None,
+            "elite_spec": None,
+            "wvw_role": None,
+            "display_name": interaction.user.display_name,
+            "updated_at": now_utc_iso()
+        }
+        save_wvw_rsvp_data()
+        await interaction.response.send_message("❌ Okej! Markerat att du **inte kommer**.", ephemeral=True)
+        await update_all_wvw_summaries(interaction.client)
 
 # Legacy Views
 class ClassSelectView(discord.ui.View):
@@ -716,7 +740,6 @@ class RoleSelectView(discord.ui.View):
         await interaction.response.send_message(
             f"✅ Du kommer som **{self.selected_class} ({selected_role})** – tack för svaret!", ephemeral=True
         )
-        # Synka till alla kanaler
         await update_all_event_summaries(interaction.client)
 
 # WvW Views
@@ -793,7 +816,6 @@ class RoleChoiceButton(discord.ui.Button):
         }
         save_wvw_rsvp_data()
         await interaction.response.edit_message(content=f"✅ Tack! Bytte roll till **{self.role}**.", view=None)
-        # Synka till alla kanaler
         await update_all_wvw_summaries(interaction.client)
 
 class ProceedButton(discord.ui.Button):
@@ -809,7 +831,6 @@ class ProceedButton(discord.ui.Button):
         }
         save_wvw_rsvp_data()
         await interaction.response.edit_message(content=f"👍 Okej! Behåller **{self.role}**.", view=None)
-        # Synka till alla kanaler
         await update_all_wvw_summaries(interaction.client)
 
 class WvWRoleSelectView(discord.ui.View):
@@ -819,11 +840,9 @@ class WvWRoleSelectView(discord.ui.View):
         self.selected_class = selected_class
         self.selected_spec = selected_spec
 
-        # Hämta tillåtna roller från meta (inkl. overrides)
         meta = get_spec_meta(self.selected_class, self.selected_spec)
-        self.allowed_roles = list(meta["roles"])  # t.ex. ["DPS"] eller ["Utility"]
+        self.allowed_roles = list(meta["roles"])
 
-        # Bygg selecten ENBART från tillåtna roller
         options = [discord.SelectOption(label=r, value=r) for r in self.allowed_roles]
         self.select = discord.ui.Select(
             placeholder=f"Välj roll ({self.selected_class} · {self.selected_spec})...",
@@ -835,7 +854,6 @@ class WvWRoleSelectView(discord.ui.View):
             uid = interaction.user.id
             chosen_role = self.select.values[0]
 
-            # Säkerhet: blockera om någon lyckas välja något utanför tillåtna roller
             if chosen_role not in self.allowed_roles:
                 await interaction.response.send_message(
                     "❌ Ogiltigt val för denna specialization. Välj en roll från listan.",
@@ -843,7 +861,6 @@ class WvWRoleSelectView(discord.ui.View):
                 )
                 return
 
-            # --- Mjuk balans-prompt: visa endast om den saknade rollen tillhör allowed_roles ---
             now_ts = time.time()
             last = last_prompt.get(uid, 0)
             can_prompt = (now_ts - last) >= PROMPT_COOLDOWN_SECONDS
@@ -864,7 +881,6 @@ class WvWRoleSelectView(discord.ui.View):
                 )
                 return
 
-            # Spara RSVP med giltig roll
             wvw_rsvp_data[uid] = {
                 "attending": True,
                 "class": self.selected_class,
@@ -893,7 +909,6 @@ async def update_all_event_summaries(client: commands.Bot):
     """Uppdatera alla event-sammanfattningar i alla kanaler"""
     global event_summary_channels
     
-    # Ta en kopia av kanal-listan eftersom den kan ändras under iteration
     channels_to_update = list(event_summary_channels.items())
     
     for channel_id, message_id in channels_to_update:
@@ -901,7 +916,6 @@ async def update_all_event_summaries(client: commands.Bot):
             channel = client.get_channel(int(channel_id)) or await client.fetch_channel(int(channel_id))
             message = await channel.fetch_message(message_id)
         except discord.NotFound:
-            # Meddelandet finns inte längre, ta bort från våra poster
             if channel_id in event_summary_channels:
                 del event_summary_channels[channel_id]
                 save_summary_channels()
@@ -910,7 +924,6 @@ async def update_all_event_summaries(client: commands.Bot):
             logger.error(f"Fel vid hämtning av sammanfattningsmeddelande för kanal {channel_id}: {e}")
             continue
 
-        # Samma sammanställningslogik som innan
         attending, not_attending = [], []
         for uid, data in rsvp_data.items():
             name = data.get("display_name", f"<@{uid}>")
@@ -932,7 +945,6 @@ async def update_all_wvw_summaries(client: commands.Bot):
     """Uppdatera alla WvW-sammanfattningar i alla kanaler"""
     global wvw_summary_channels
     
-    # Ta en kopia av kanal-listan eftersom den kan ändras under iteration
     channels_to_update = list(wvw_summary_channels.items())
     
     for channel_id, message_id in channels_to_update:
@@ -940,7 +952,6 @@ async def update_all_wvw_summaries(client: commands.Bot):
             channel = client.get_channel(int(channel_id)) or await client.fetch_channel(int(channel_id))
             message = await channel.fetch_message(message_id)
         except discord.NotFound:
-            # Meddelandet finns inte längre, ta bort från våra poster
             if channel_id in wvw_summary_channels:
                 del wvw_summary_channels[channel_id]
                 save_summary_channels()
@@ -949,7 +960,6 @@ async def update_all_wvw_summaries(client: commands.Bot):
             logger.error(f"Fel vid hämtning av WvW sammanfattningsmeddelande för kanal {channel_id}: {e}")
             continue
 
-        # Samma sammanställningslogik som innan
         attending, not_attending = [], []
         for uid, data in wvw_rsvp_data.items():
             name = data.get("display_name", f"<@{uid}>")
@@ -1526,7 +1536,6 @@ async def meta_bulk_import(interaction: discord.Interaction, file: discord.Attac
     updated, skipped, errors = _apply_meta_csv_string(text)
     msg = f"✅ Import klar. Uppdaterade: **{updated}** · Skippade: **{skipped}**"
     if errors:
-        # Visa de första ~8 felen för att inte spamma
         preview = "\n".join(f"- {e}" for e in errors[:8])
         if len(errors) > 8:
             preview += f"\n... och {len(errors)-8} fler."
@@ -1579,7 +1588,6 @@ async def squad_analyze(interaction: discord.Interaction):
         if reason.get("type") == "cap":
             reason_line = f"🎯 {reason.get('message','')}"
         elif reason.get("type") == "imbalance":
-            # Lägg in meta-exempel även här
             missing_role = None
             if "Saknar **" in reason.get("message",""):
                 for r in ["Primary Support","Secondary Support","Tertiary Support"]:
