@@ -1338,8 +1338,14 @@ async def event_command(interaction: discord.Interaction, action: str, name: str
 )
 async def event_clear_all(interaction: discord.Interaction):
     if not interaction.user.guild_permissions.administrator:
-        await interaction.response.send_message("🚫 Du har inte behörighet att använda detta kommando.", ephemeral=True)
+        await interaction.response.send_message(
+            "🚫 Du har inte behörighet att använda detta kommando.",
+            ephemeral=True
+        )
         return
+
+    # ✅ Svara direkt så interaktionen inte hinner dö
+    await interaction.response.defer(ephemeral=True)
 
     global event_summary_channels, wvw_summary_channels
 
@@ -1350,20 +1356,25 @@ async def event_clear_all(interaction: discord.Interaction):
     # 🧹 Ta bort alla sammanfattningsmeddelanden för vanliga event
     for channel_id, message_id in list(event_summary_channels.items()):
         try:
-            channel = interaction.client.get_channel(int(channel_id)) or await interaction.client.fetch_channel(int(channel_id))
+            channel = interaction.client.get_channel(int(channel_id)) \
+                      or await interaction.client.fetch_channel(int(channel_id))
             message = await channel.fetch_message(message_id)
             await message.delete()
-        except Exception:
-            pass
+        except Exception as e:
+            # T.ex. Missing Permissions eller kanalen borttagen
+            logger.warning(f"Misslyckades ta bort event-sammanfattning i kanal {channel_id}: {e}")
+            continue
     
     # 🧹 Ta bort alla sammanfattningsmeddelanden för WvW-event
     for channel_id, message_id in list(wvw_summary_channels.items()):
         try:
-            channel = interaction.client.get_channel(int(channel_id)) or await interaction.client.fetch_channel(int(channel_id))
+            channel = interaction.client.get_channel(int(channel_id)) \
+                      or await interaction.client.fetch_channel(int(channel_id))
             message = await channel.fetch_message(message_id)
             await message.delete()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Misslyckades ta bort WvW-sammanfattning i kanal {channel_id}: {e}")
+            continue
     
     # Rensa all data i minnet
     event_summary_channels.clear()
@@ -1376,13 +1387,17 @@ async def event_clear_all(interaction: discord.Interaction):
     save_rsvp_data()
     save_wvw_rsvp_data()
     
-    await interaction.response.send_message(
+    # ✅ Skicka slut-svar via followup
+    await interaction.followup.send(
         "✅ Både **Event** och **WvW-event** är nu rensade från alla kanaler och all RSVP-data är nollställd.\n"
         "📦 Snapshot av deltagare/byggen sparad i `event_history.json` och `wvw_event_history.json`.",
         ephemeral=True
     )
 
-@bot.tree.command(name="wvw_event", description="Hantera WvW-event")
+@bot.tree.command(
+    name="wvw_event",
+    description="Hantera WvW-event"
+)
 @app_commands.describe(
     action="start/add_channel/remove_channel/reset",
     wvw_name="Valfritt namn på WvW-eventet (endast vid start)"
@@ -1393,113 +1408,189 @@ async def event_clear_all(interaction: discord.Interaction):
     app_commands.Choice(name="remove_channel", value="remove_channel"),
     app_commands.Choice(name="reset", value="reset")
 ])
-async def wvw_event(interaction: discord.Interaction, action: str, wvw_name: str | None = None):
+async def wvw_event(
+    interaction: discord.Interaction,
+    action: str,
+    wvw_name: str | None = None
+):
     channel_id = str(interaction.channel_id)
-    
+
     if not interaction.user.guild_permissions.administrator:
-        await interaction.response.send_message("🚫 Du har inte behörighet att använda detta kommando.", ephemeral=True)
+        await interaction.response.send_message(
+            "🚫 Du har inte behörighet att använda detta kommando.",
+            ephemeral=True
+        )
         return
 
     global wvw_event_name
 
+    # För att slippa "Unknown interaction" om något tar lite tid
+    await interaction.response.defer(ephemeral=True)
+
     if action == "start":
         wvw_event_name = wvw_name or "WvW Event"
         try:
-            await interaction.response.defer(ephemeral=True)
-            await interaction.channel.send(f"🛡️ RSVP till WvW-eventet **{wvw_event_name}**!", view=WvWRSVPView())
-            summary_msg = await interaction.channel.send(
-                embed=discord.Embed(title=f"🛡️ WvW Event – {wvw_event_name}", description="Laddar...")
+            # RSVP-knappar
+            await interaction.channel.send(
+                f"🛡️ RSVP till WvW-eventet **{wvw_event_name}**!",
+                view=WvWRSVPView()
             )
-            
-            # Lägg till denna kanal i listan
-            wvw_summary_channels[channel_id] = summary_msg.id
-            save_summary_channels()
-            
-            await interaction.followup.send(f"✅ WvW Event **{wvw_event_name}** startat! Denna kanal är nu aktiv.", ephemeral=True)
-            await update_all_wvw_summaries(interaction.client)
-        except Exception as e:
-            logger.error(f"Fel vid start av WvW event: {e}")
-            await interaction.followup.send("❌ Kunde inte starta WvW eventet.", ephemeral=True)
 
-    elif action == "add_channel":
-        if not wvw_summary_channels:  # Inget aktivt event
-            await interaction.response.send_message("❌ Inget aktivt WvW-event. Starta ett först med `/wvw_event start`.", ephemeral=True)
-            return
-            
-        try:
-            await interaction.response.defer(ephemeral=True)
-            await interaction.channel.send(f"🛡️ RSVP till WvW-eventet **{wvw_event_name}**!", view=WvWRSVPView())
+            # Sammanfattnings-embed
             summary_msg = await interaction.channel.send(
-                embed=discord.Embed(title=f"🛡️ WvW Event – {wvw_event_name}", description="Laddar...")
+                embed=discord.Embed(
+                    title=f"🛡️ WvW Event – {wvw_event_name}",
+                    description="Laddar..."
+                )
             )
-            
-            # Lägg till denna kanal i listan
+
             wvw_summary_channels[channel_id] = summary_msg.id
             save_summary_channels()
-            
-            await interaction.followup.send(f"✅ Denna kanal är nu en del av WvW-eventet **{wvw_event_name}**!", ephemeral=True)
+
+            await interaction.followup.send(
+                f"✅ WvW Event **{wvw_event_name}** startat! "
+                f"Denna kanal är nu aktiv.",
+                ephemeral=True
+            )
             await update_all_wvw_summaries(interaction.client)
+        
         except Exception as e:
-            logger.error(f"Fel vid tillägg av kanal: {e}")
-            await interaction.followup.send("❌ Kunde inte lägga till kanalen.", ephemeral=True)
+            # logga full stacktrace i konsolen
+            logger.exception(f"Fel vid start av WvW event")
+
+            # visa själva felet i Discord så vi ser vad som händer
+            await interaction.followup.send(
+                f"❌ Kunde inte starta WvW-eventet:\n`{type(e).__name__}: {e}`",
+                ephemeral=True
+            )
+
+        
+    elif action == "add_channel":
+        if not wvw_summary_channels:
+            await interaction.followup.send(
+                "❌ Inget aktivt WvW-event. "
+                "Starta ett först med `/wvw_event start`.",
+                ephemeral=True
+            )
+            return
+
+        try:
+            await interaction.channel.send(
+                f"🛡️ RSVP till WvW-eventet **{wvw_event_name}**!",
+                view=WvWRSVPView()
+            )
+            summary_msg = await interaction.channel.send(
+                embed=discord.Embed(
+                    title=f"🛡️ WvW Event – {wvw_event_name}",
+                    description="Laddar..."
+                )
+            )
+
+            wvw_summary_channels[channel_id] = summary_msg.id
+            save_summary_channels()
+
+            await interaction.followup.send(
+                f"✅ Denna kanal är nu en del av "
+                f"WvW-eventet **{wvw_event_name}**!",
+                ephemeral=True
+            )
+            await update_all_wvw_summaries(interaction.client)
+
+        except Exception as e:
+            logger.error(f"Fel vid tillägg av WvW-kanal: {e}")
+            await interaction.followup.send(
+                "❌ Kunde inte lägga till kanalen.",
+                ephemeral=True
+            )
 
     elif action == "remove_channel":
         if channel_id in wvw_summary_channels:
             try:
-                # Ta bort meddelandet
-                channel = interaction.client.get_channel(int(channel_id)) or await interaction.client.fetch_channel(int(channel_id))
-                message = await channel.fetch_message(wvw_summary_channels[channel_id])
-                await message.delete()
-            except:
-                pass
-            
+                channel = (
+                    interaction.client.get_channel(int(channel_id))
+                    or await interaction.client.fetch_channel(int(channel_id))
+                )
+                msg_id = wvw_summary_channels[channel_id]
+                msg = await channel.fetch_message(msg_id)
+                await msg.delete()
+            except Exception as e:
+                logger.warning(
+                    f"Kunde inte ta bort WvW-sammanfattningsmeddelande i "
+                    f"kanal {channel_id}: {e}"
+                )
+
             del wvw_summary_channels[channel_id]
             save_summary_channels()
-            await interaction.response.send_message("✅ Denna kanal är nu borttagen från WvW-eventet.", ephemeral=True)
+
+            await interaction.followup.send(
+                "✅ Denna kanal är nu borttagen från WvW-eventet.",
+                ephemeral=True
+            )
         else:
-            await interaction.response.send_message("❌ Denna kanal är inte en del av något WvW-event.", ephemeral=True)
+            await interaction.followup.send(
+                "❌ Denna kanal är inte en del av något WvW-event.",
+                ephemeral=True
+            )
 
     elif action == "reset":
-        # Spara historik först
+        # snapshot före wipe
         archive_current_wvw_event(closed_by=interaction.user.id)
 
         wvw_rsvp_data.clear()
         save_wvw_rsvp_data()
-        await interaction.response.send_message("🔄 WvW-data nollställt (snapshot sparad i historiken).", ephemeral=True)
+
+        await interaction.followup.send(
+            "🔄 WvW-data nollställt "
+            "(snapshot sparad i historiken).",
+            ephemeral=True
+        )
         await update_all_wvw_summaries(interaction.client)
 
-@bot.tree.command(name="wvw_event_clear_all", description="Tar bort WvW-eventet från alla kanaler och nollställer all data")
+
+@bot.tree.command(
+    name="wvw_event_clear_all",
+    description="Tar bort WvW-eventet från alla kanaler och nollställer all data"
+)
 async def wvw_event_clear_all(interaction: discord.Interaction):
     if not interaction.user.guild_permissions.administrator:
-        await interaction.response.send_message("🚫 Du har inte behörighet att använda detta kommando.", ephemeral=True)
+        await interaction.response.send_message(
+            "🚫 Du har inte behörighet att använda detta kommando.",
+            ephemeral=True
+        )
         return
 
+    await interaction.response.defer(ephemeral=True)
+
     global wvw_summary_channels
-    
-    # 👉 Spara historik först
+
+    # snapshot först
     archive_current_wvw_event(closed_by=interaction.user.id)
-    
-    # Ta bort alla meddelanden
+
     for channel_id, message_id in list(wvw_summary_channels.items()):
         try:
-            channel = interaction.client.get_channel(int(channel_id)) or await interaction.client.fetch_channel(int(channel_id))
-            message = await channel.fetch_message(message_id)
-            await message.delete()
-        except:
-            pass
-    
-    # Rensa data
+            channel = (
+                interaction.client.get_channel(int(channel_id))
+                or await interaction.client.fetch_channel(int(channel_id))
+            )
+            msg = await channel.fetch_message(message_id)
+            await msg.delete()
+        except Exception as e:
+            logger.warning(
+                f"Misslyckades ta bort WvW-sammanfattning i kanal {channel_id}: {e}"
+            )
+
     wvw_summary_channels.clear()
     wvw_rsvp_data.clear()
-    
-    # Spara
+
     save_summary_channels()
     save_wvw_rsvp_data()
-    
-    await interaction.response.send_message(
-        "✅ WvW-event rensat från alla kanaler och alla RSVP nollställda (snapshot sparad i historiken).",
+
+    await interaction.followup.send(
+        "✅ WvW-event rensat från alla kanaler och alla RSVP "
+        "nollställda (snapshot sparad i historiken).",
         ephemeral=True
     )
+
 
 # ----------------------------
 # Custom Role Modal
