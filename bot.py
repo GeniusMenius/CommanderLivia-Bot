@@ -56,8 +56,8 @@ squad_templates = {
             {"name": "Secondary Support", "count": 1, "allowed_roles": ["Secondary Support"]},
             {"name": "DPS 1", "count": 1, "allowed_roles": ["DPS", "Strip DPS"]},
             {"name": "DPS 2", "count": 1, "allowed_roles": ["DPS", "Strip DPS"]},
-            {"name": "Flex", "count": 1, "allowed_roles": ["Utility", "Tertiary Support", "DPS", "Strip DPS"]}
-        ]
+            {"name": "Flex", "count": 1, "allowed_roles": ["Utility", "Tertiary Support", "DPS", "Strip DPS"]},
+        ],
     },
     "ranged": {
         "name": "Ranged Comp",
@@ -66,8 +66,8 @@ squad_templates = {
             {"name": "Secondary Support", "count": 1, "allowed_roles": ["Secondary Support"]},
             {"name": "Tertiary Support", "count": 1, "allowed_roles": ["Tertiary Support"]},
             {"name": "Ranged DPS 1", "count": 1, "allowed_roles": ["DPS"]},
-            {"name": "Ranged DPS 2", "count": 1, "allowed_roles": ["DPS"]}
-        ]
+            {"name": "Ranged DPS 2", "count": 1, "allowed_roles": ["DPS"]},
+        ],
     },
     "melee": {
         "name": "Melee Comp",
@@ -76,9 +76,9 @@ squad_templates = {
             {"name": "Secondary Support", "count": 1, "allowed_roles": ["Secondary Support"]},
             {"name": "Tertiary Support", "count": 1, "allowed_roles": ["Tertiary Support"]},
             {"name": "Melee DPS 1", "count": 1, "allowed_roles": ["DPS"]},
-            {"name": "Melee DPS 2", "count": 1, "allowed_roles": ["DPS"]}
-        ]
-    }
+            {"name": "Melee DPS 2", "count": 1, "allowed_roles": ["DPS"]},
+        ],
+    },
 }
 
 def load_squad_templates():
@@ -107,7 +107,7 @@ def load_custom_roles():
     global custom_roles
     if os.path.exists(CUSTOM_ROLES_FILE):
         try:
-            with open(CUSTOM_ROLES_FILE,"r",encoding="utf-8") as f:
+            with open(CUSTOM_ROLES_FILE, "r", encoding="utf-8") as f:
                 custom_roles = json.load(f)
         except:
             custom_roles = {}
@@ -116,8 +116,8 @@ def load_custom_roles():
 
 def save_custom_roles():
     try:
-        with open(CUSTOM_ROLES_FILE,"w",encoding="utf-8") as f:
-            json.dump(custom_roles,f,ensure_ascii=False,indent=2)
+        with open(CUSTOM_ROLES_FILE, "w", encoding="utf-8") as f:
+            json.dump(custom_roles, f, ensure_ascii=False, indent=2)
     except Exception as e:
         logger.error(f"Fel vid sparande av custom roller: {e}")
 
@@ -126,10 +126,10 @@ def all_roles_for_select():
     extra = [r for r in custom_roles.keys() if r not in base]
     return base + extra
 
-def role_to_bucket(role:str)->str:
+def role_to_bucket(role: str) -> str:
     if role in WVW_ROLES_DISPLAY:
         return role
-    return custom_roles.get(role,"Utility")
+    return custom_roles.get(role, "Utility")
 
 # ----------------------------
 # Meta Info
@@ -140,64 +140,64 @@ ELITE_SPECS_BASE = {
         "Dragonhunter": {"roles": ["DPS"], "tier": "A"},
         "Firebrand": {"roles": ["Primary Support"], "tier": "S+"},
         "Willbender": {"roles": ["DPS"], "tier": "B"},
-        "Luminary": {"roles": ["Primary Support"], "tier": "A"}
+        "Luminary": {"roles": ["Primary Support"], "tier": "A"},
     },
     "Warrior": {
         "Core": {"roles": ["DPS"], "tier": "C"},
         "Berserker": {"roles": ["DPS"], "tier": "B"},
         "Spellbreaker": {"roles": ["DPS"], "tier": "S"},
         "Bladesworn": {"roles": ["DPS"], "tier": "A"},
-        "Paragon": {"roles": ["Utility"], "tier": "C"}
+        "Paragon": {"roles": ["Utility"], "tier": "C"},
     },
     "Revenant": {
         "Core": {"roles": ["DPS"], "tier": "C"},
         "Herald": {"roles": ["Tertiary Support"], "tier": "B"},
         "Renegade": {"roles": ["DPS"], "tier": "S"},
         "Vindicator": {"roles": ["DPS"], "tier": "A"},
-        "Conduit": {"roles": ["Utility"], "tier": "C"}
+        "Conduit": {"roles": ["Utility"], "tier": "C"},
     },
     "Engineer": {
         "Core": {"roles": ["DPS"], "tier": "C"},
         "Scrapper": {"roles": ["Secondary Support"], "tier": "S"},
         "Holosmith": {"roles": ["DPS"], "tier": "S"},
         "Mechanist": {"roles": ["DPS"], "tier": "S"},
-        "Amalgam": {"roles": ["DPS"], "tier": "B"}
+        "Amalgam": {"roles": ["DPS"], "tier": "B"},
     },
     "Ranger": {
         "Core": {"roles": ["DPS"], "tier": "C"},
         "Druid": {"roles": ["Secondary Support"], "tier": "S"},
         "Soulbeast": {"roles": ["Tertiary Support"], "tier": "B"},
         "Untamed": {"roles": ["DPS"], "tier": "A"},
-        "Galeshot": {"roles": ["Utility"], "tier": "C"}
+        "Galeshot": {"roles": ["Utility"], "tier": "C"},
     },
     "Thief": {
         "Core": {"roles": ["DPS"], "tier": "C"},
         "Daredevil": {"roles": ["DPS"], "tier": "A"},
         "Deadeye": {"roles": ["Strip DPS"], "tier": "S+"},
         "Specter": {"roles": ["Secondary Support"], "tier": "S"},
-        "Antiquary": {"roles": ["Utility"], "tier": "C"}
+        "Antiquary": {"roles": ["Utility"], "tier": "C"},
     },
     "Elementalist": {
         "Core": {"roles": ["DPS"], "tier": "C"},
         "Tempest": {"roles": ["Secondary Support"], "tier": "S"},
         "Weaver": {"roles": ["DPS"], "tier": "S+"},
         "Catalyst": {"roles": ["Tertiary Support"], "tier": "S"},
-        "Evoker": {"roles": ["Utility"], "tier": "C"}
+        "Evoker": {"roles": ["Utility"], "tier": "C"},
     },
     "Mesmer": {
         "Core": {"roles": ["DPS"], "tier": "C"},
         "Chronomancer": {"roles": ["Primary Support"], "tier": "S+"},
         "Mirage": {"roles": ["DPS"], "tier": "S"},
         "Virtuoso": {"roles": ["DPS"], "tier": "S"},
-        "Troubadour": {"roles": ["Utility"], "tier": "B"}
+        "Troubadour": {"roles": ["Utility"], "tier": "B"},
     },
     "Necromancer": {
         "Core": {"roles": ["DPS"], "tier": "C"},
         "Reaper": {"roles": ["DPS"], "tier": "S"},
         "Scourge": {"roles": ["Strip DPS"], "tier": "S+"},
         "Harbinger": {"roles": ["Tertiary Support"], "tier": "S"},
-        "Ritualist": {"roles": ["Strip DPS"], "tier": "S"}
-    }
+        "Ritualist": {"roles": ["Strip DPS"], "tier": "S"},
+    },
 }
 
 META_FILE = "meta_overrides.json"
@@ -207,29 +207,30 @@ def load_meta_overrides():
     global meta_overrides
     if os.path.exists(META_FILE):
         try:
-            with open(META_FILE,"r") as f:
+            with open(META_FILE, "r") as f:
                 meta_overrides = json.load(f)
         except:
             meta_overrides = {}
 
 def save_meta_overrides():
     try:
-        with open(META_FILE,"w") as f:
-            json.dump(meta_overrides,f)
+        with open(META_FILE, "w") as f:
+            json.dump(meta_overrides, f)
     except Exception as e:
         logger.error(f"Fel vid sparande av meta_overrides: {e}")
 
-def get_spec_meta(klass,spec):
-    base = (ELITE_SPECS_BASE.get(klass,{}) or {}).get(spec,{})
-    override = (meta_overrides.get(klass,{}) or {}).get(spec,{})
-    roles = override.get("roles",base.get("roles",["DPS"]))
+def get_spec_meta(klass, spec):
+    base = (ELITE_SPECS_BASE.get(klass, {}) or {}).get(spec, {})
+    override = (meta_overrides.get(klass, {}) or {}).get(spec, {})
+    roles = override.get("roles", base.get("roles", ["DPS"]))
     roles = [r for r in roles if r in all_roles_for_select()] or ["DPS"]
-    tier = override.get("tier",base.get("tier","C"))
-    if tier not in ALLOWED_TIERS: tier="C"
-    return {"roles":roles,"tier":tier}
+    tier = override.get("tier", base.get("tier", "C"))
+    if tier not in ALLOWED_TIERS:
+        tier = "C"
+    return {"roles": roles, "tier": tier}
 
 # Hjälp: Hitta högst-tier specs för en given roll (exempelförslag i prompten)
-def best_specs_for_role(role:str, limit:int=2) -> list[str]:
+def best_specs_for_role(role: str, limit: int = 2) -> list[str]:
     candidates = []
     for klass, specs in ELITE_SPECS_BASE.items():
         for spec, _ in specs.items():
@@ -245,8 +246,11 @@ def best_specs_for_role(role:str, limit:int=2) -> list[str]:
 # ----------------------------
 # Tidshjälp
 # ----------------------------
-def now_utc(): return datetime.datetime.now(datetime.timezone.utc)
-def now_utc_iso(): return now_utc().isoformat()
+def now_utc():
+    return datetime.datetime.now(datetime.timezone.utc)
+
+def now_utc_iso():
+    return now_utc().isoformat()
 
 def parse_iso(dt_str: str) -> datetime.datetime:
     """Parsa ISO-sträng. Om ingen tz-info finns, anta UTC."""
@@ -266,6 +270,9 @@ SUMMARY_CHANNELS_FILE = "summary_channels.json"
 WVW_DATA_FILE = "wvw_rsvp_data.json"
 WVW_SUMMARY_CHANNELS_FILE = "wvw_summary_channels.json"
 
+EVENT_HISTORY_FILE = "event_history.json"
+WVW_EVENT_HISTORY_FILE = "wvw_event_history.json"
+
 rsvp_data: dict[int, dict] = {}
 event_name: str = "Event"
 event_summary_channels: dict[str, int] = {}  # channel_id -> message_id
@@ -273,6 +280,9 @@ event_summary_channels: dict[str, int] = {}  # channel_id -> message_id
 wvw_rsvp_data: dict[int, dict] = {}
 wvw_event_name: str = "WvW Event"
 wvw_summary_channels: dict[str, int] = {}  # channel_id -> message_id
+
+event_history: list[dict] = []
+wvw_event_history: list[dict] = []
 
 def load_rsvp_data():
     global rsvp_data
@@ -290,7 +300,7 @@ def load_rsvp_data():
                             "class": v.get("class"),
                             "role": v.get("role"),
                             "display_name": v.get("display_name", f"User_{uid}"),
-                            "updated_at": v.get("updated_at", now_utc_iso())
+                            "updated_at": v.get("updated_at", now_utc_iso()),
                         }
                         rsvp_data[uid]["updated_at"] = parse_iso(rsvp_data[uid]["updated_at"]).isoformat()
                 except (ValueError, TypeError):
@@ -360,7 +370,7 @@ def load_wvw_rsvp_data():
                             "elite_spec": v.get("elite_spec"),
                             "wvw_role": v.get("wvw_role"),
                             "display_name": v.get("display_name", f"User_{uid}"),
-                            "updated_at": v.get("updated_at", now_utc_iso())
+                            "updated_at": v.get("updated_at", now_utc_iso()),
                         }
                         wvw_rsvp_data[uid]["updated_at"] = parse_iso(wvw_rsvp_data[uid]["updated_at"]).isoformat()
                 except (ValueError, TypeError):
@@ -380,6 +390,97 @@ def save_wvw_rsvp_data():
             json.dump(wvw_rsvp_data, f)
     except Exception as e:
         logger.error(f"Fel vid sparande av WvW RSVP-data: {e}")
+
+# ----- Historikloaders -----
+def load_event_history():
+    global event_history
+    if os.path.exists(EVENT_HISTORY_FILE):
+        try:
+            with open(EVENT_HISTORY_FILE, "r", encoding="utf-8") as f:
+                event_history = json.load(f)
+        except Exception as e:
+            logger.error(f"Fel vid laddning av event-historik: {e}")
+            event_history = []
+    else:
+        event_history = []
+
+def load_wvw_event_history():
+    global wvw_event_history
+    if os.path.exists(WVW_EVENT_HISTORY_FILE):
+        try:
+            with open(WVW_EVENT_HISTORY_FILE, "r", encoding="utf-8") as f:
+                wvw_event_history = json.load(f)
+        except Exception as e:
+            logger.error(f"Fel vid laddning av WvW-event-historik: {e}")
+            wvw_event_history = []
+    else:
+        wvw_event_history = []
+
+# ----- Historik-archivers -----
+def archive_current_event(closed_by: int | None = None):
+    """Spara en snapshot av nuvarande legacy-event till historikfil."""
+    global event_history
+    if not rsvp_data:
+        return
+
+    snapshot = {
+        "name": event_name,
+        "closed_at": now_utc_iso(),
+        "closed_by": closed_by,
+        "entries": [],
+    }
+
+    for uid, d in rsvp_data.items():
+        snapshot["entries"].append(
+            {
+                "user_id": uid,
+                "display_name": d.get("display_name"),
+                "attending": d.get("attending", False),
+                "class": d.get("class"),
+                "role": d.get("role"),
+                "updated_at": d.get("updated_at"),
+            }
+        )
+
+    event_history.append(snapshot)
+    try:
+        with open(EVENT_HISTORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(event_history, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"Fel vid sparande av event-historik: {e}")
+
+def archive_current_wvw_event(closed_by: int | None = None):
+    """Spara en snapshot av nuvarande WvW-event till historikfil."""
+    global wvw_event_history
+    if not wvw_rsvp_data:
+        return
+
+    snapshot = {
+        "name": wvw_event_name,
+        "closed_at": now_utc_iso(),
+        "closed_by": closed_by,
+        "entries": [],
+    }
+
+    for uid, d in wvw_rsvp_data.items():
+        snapshot["entries"].append(
+            {
+                "user_id": uid,
+                "display_name": d.get("display_name"),
+                "attending": d.get("attending", False),
+                "class": d.get("class"),
+                "elite_spec": d.get("elite_spec"),
+                "wvw_role": d.get("wvw_role"),
+                "updated_at": d.get("updated_at"),
+            }
+        )
+
+    wvw_event_history.append(snapshot)
+    try:
+        with open(WVW_EVENT_HISTORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(wvw_event_history, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"Fel vid sparande av WvW-event-historik: {e}")
 
 # ----------------------------
 # Auto-clean
@@ -433,8 +534,8 @@ def _role_counts_from_attending(attending_pairs: list[tuple[int, dict]]) -> dict
     return base
 
 def _tier_order_for(uid: int, data: dict) -> int:
-    meta = get_spec_meta(data.get("class",""), data.get("elite_spec",""))
-    return TIER_ORDER.get(meta.get("tier","C"), 4)
+    meta = get_spec_meta(data.get("class", ""), data.get("elite_spec", ""))
+    return TIER_ORDER.get(meta.get("tier", "C"), 4)
 
 def _rank_key(uid: int, data: dict) -> tuple:
     # lägre är bättre: tier → färskast → uid
@@ -466,7 +567,7 @@ def preview_next_missing_role(attending_pairs_wo_self: list[tuple[int, dict]]) -
     support_cap = min(
         counts["Secondary Support"],
         counts["Primary Support"] + (1 if commander_exists else 0),
-        MAX_SQUADS
+        MAX_SQUADS,
     )
 
     dps_like = counts["DPS"] + counts["Strip DPS"]
@@ -524,23 +625,38 @@ def build_squads_balanced():
         cand = remaining()
         sec = _pick_best(cand, ["Secondary Support"])
         if sec:
-            used.add(sec[0]); cand = remaining()
+            used.add(sec[0])
+            cand = remaining()
             tert = _pick_best(cand, ["Tertiary Support"]) or _pick_best(cand, ["Strip DPS", "DPS", "Utility"])
             if tert:
-                used.add(tert[0]); cand = remaining()
+                used.add(tert[0])
+                cand = remaining()
             dps1 = _pick_best(cand, ["Strip DPS", "DPS"])
             if dps1:
-                used.add(dps1[0]); cand = remaining()
+                used.add(dps1[0])
+                cand = remaining()
             dps2 = _pick_best(cand, ["Strip DPS", "DPS"])
             if dps2:
                 used.add(dps2[0])
 
             squad = []
             squad.append(("Commander", commander[0], commander[1]))
-            if sec:   squad.append(("Secondary Support", sec[0], sec[1]))
-            if tert:  squad.append(("Tertiary Support" if tert[1].get("wvw_role")=="Tertiary Support" else tert[1].get("wvw_role"), tert[0], tert[1]))
-            if dps1:  squad.append((dps1[1].get("wvw_role"), dps1[0], dps1[1]))
-            if dps2:  squad.append((dps2[1].get("wvw_role"), dps2[0], dps2[1]))
+            if sec:
+                squad.append(("Secondary Support", sec[0], sec[1]))
+            if tert:
+                squad.append(
+                    (
+                        "Tertiary Support"
+                        if tert[1].get("wvw_role") == "Tertiary Support"
+                        else tert[1].get("wvw_role"),
+                        tert[0],
+                        tert[1],
+                    )
+                )
+            if dps1:
+                squad.append((dps1[1].get("wvw_role"), dps1[0], dps1[1]))
+            if dps2:
+                squad.append((dps2[1].get("wvw_role"), dps2[0], dps2[1]))
 
             if len(squad) == 5:
                 squads.append(squad)
@@ -557,21 +673,25 @@ def build_squads_balanced():
         prim = _pick_best(cand, ["Primary Support"])
         if not prim:
             break
-        used.add(prim[0]); cand = remaining()
+        used.add(prim[0])
+        cand = remaining()
 
         sec = _pick_best(cand, ["Secondary Support"])
         if not sec:
             used.discard(prim[0])
             break
-        used.add(sec[0]); cand = remaining()
+        used.add(sec[0])
+        cand = remaining()
 
         tert = _pick_best(cand, ["Tertiary Support"]) or _pick_best(cand, ["Strip DPS", "DPS", "Utility"])
         if tert:
-            used.add(tert[0]); cand = remaining()
+            used.add(tert[0])
+            cand = remaining()
 
         dps1 = _pick_best(cand, ["Strip DPS", "DPS"])
         if dps1:
-            used.add(dps1[0]); cand = remaining()
+            used.add(dps1[0])
+            cand = remaining()
         dps2 = _pick_best(cand, ["Strip DPS", "DPS"])
         if dps2:
             used.add(dps2[0])
@@ -579,9 +699,20 @@ def build_squads_balanced():
         squad = []
         squad.append(("Primary Support", prim[0], prim[1]))
         squad.append(("Secondary Support", sec[0], sec[1]))
-        if tert:  squad.append(("Tertiary Support" if tert[1].get("wvw_role")=="Tertiary Support" else tert[1].get("wvw_role"), tert[0], tert[1]))
-        if dps1:  squad.append((dps1[1].get("wvw_role"), dps1[0], dps1[1]))
-        if dps2:  squad.append((dps2[1].get("wvw_role"), dps2[0], dps2[1]))
+        if tert:
+            squad.append(
+                (
+                    "Tertiary Support"
+                    if tert[1].get("wvw_role") == "Tertiary Support"
+                    else tert[1].get("wvw_role"),
+                    tert[0],
+                    tert[1],
+                )
+            )
+        if dps1:
+            squad.append((dps1[1].get("wvw_role"), dps1[0], dps1[1]))
+        if dps2:
+            squad.append((dps2[1].get("wvw_role"), dps2[0], dps2[1]))
 
         if len(squad) == 5:
             squads.append(squad)
@@ -630,13 +761,13 @@ class RSVPView(discord.ui.View):
                     f"✅ Du är anmäld som **{curr['class']} ({curr.get('role','?')})**.\n"
                     f"Vill du ändra? Välj ny roll:",
                     view=RoleSelectView(curr["class"]),
-                    ephemeral=True
+                    ephemeral=True,
                 )
             else:
                 await interaction.response.send_message(
                     "✅ Du har redan RSVP:at. Vill du ändra? Välj ny klass/roll:",
                     view=ClassSelectView(),
-                    ephemeral=True
+                    ephemeral=True,
                 )
 
             await update_all_event_summaries(interaction.client)
@@ -652,7 +783,7 @@ class RSVPView(discord.ui.View):
             "class": None,
             "role": None,
             "display_name": interaction.user.display_name,
-            "updated_at": now_utc_iso()
+            "updated_at": now_utc_iso(),
         }
         save_rsvp_data()
         await interaction.response.send_message("❌ Okej! Markerat att du **inte kommer**.", ephemeral=True)
@@ -673,14 +804,14 @@ class WvWRSVPView(discord.ui.View):
 
             curr = wvw_rsvp_data.get(uid, {})
             klass = curr.get("class") or "Okänd klass"
-            spec  = curr.get("elite_spec") or "okänd spec"
-            role  = curr.get("wvw_role") or "okänd roll"
+            spec = curr.get("elite_spec") or "okänd spec"
+            role = curr.get("wvw_role") or "okänd roll"
 
             await interaction.response.send_message(
                 f"✅ Du är anmäld som **{klass} - {spec}** med roll **{role}**.\n"
                 f"Vill du ändra? Välj klass → spec → roll:",
                 view=WvWClassSelectView(),
-                ephemeral=True
+                ephemeral=True,
             )
             await update_all_wvw_summaries(interaction.client)
             return
@@ -696,7 +827,7 @@ class WvWRSVPView(discord.ui.View):
             "elite_spec": None,
             "wvw_role": None,
             "display_name": interaction.user.display_name,
-            "updated_at": now_utc_iso()
+            "updated_at": now_utc_iso(),
         }
         save_wvw_rsvp_data()
         await interaction.response.send_message("❌ Okej! Markerat att du **inte kommer**.", ephemeral=True)
@@ -710,7 +841,7 @@ class ClassSelectView(discord.ui.View):
     @discord.ui.select(
         placeholder="Välj din klass...",
         options=[discord.SelectOption(label=cls, value=cls) for cls in CLASSES],
-        custom_id="gw2_class_select"
+        custom_id="gw2_class_select",
     )
     async def class_select(self, interaction: discord.Interaction, select: discord.ui.Select):
         await interaction.response.send_message("Välj din roll:", view=RoleSelectView(select.values[0]), ephemeral=True)
@@ -724,7 +855,7 @@ class RoleSelectView(discord.ui.View):
     @discord.ui.select(
         placeholder="Välj din roll...",
         options=[discord.SelectOption(label=r, value=r) for r in ROLES],
-        custom_id="gw2_role_select"
+        custom_id="gw2_role_select",
     )
     async def role_select(self, interaction: discord.Interaction, select: discord.ui.Select):
         uid = interaction.user.id
@@ -734,7 +865,7 @@ class RoleSelectView(discord.ui.View):
             "class": self.selected_class,
             "role": selected_role,
             "display_name": interaction.user.display_name,
-            "updated_at": now_utc_iso()
+            "updated_at": now_utc_iso(),
         }
         save_rsvp_data()
         await interaction.response.send_message(
@@ -750,14 +881,14 @@ class WvWClassSelectView(discord.ui.View):
     @discord.ui.select(
         placeholder="Välj din klass...",
         options=[discord.SelectOption(label=cls, value=cls) for cls in CLASSES],
-        custom_id="wvw_class_select"
+        custom_id="wvw_class_select",
     )
     async def class_select(self, interaction: discord.Interaction, select: discord.ui.Select):
         await interaction.response.defer(ephemeral=True)
         await interaction.followup.send(
             "Välj din elite specialization:",
             view=WvWEliteSpecSelectView(select.values[0]),
-            ephemeral=True
+            ephemeral=True,
         )
 
 class WvWEliteSpecSelectView(discord.ui.View):
@@ -807,12 +938,16 @@ class RoleChoiceButton(discord.ui.Button):
     def __init__(self, klass, spec, role, label):
         super().__init__(label=label, style=discord.ButtonStyle.primary)
         self.klass, self.spec, self.role = klass, spec, role
+
     async def callback(self, interaction: discord.Interaction):
         uid = interaction.user.id
         wvw_rsvp_data[uid] = {
-            "attending": True, "class": self.klass, "elite_spec": self.spec,
-            "wvw_role": self.role, "display_name": interaction.user.display_name,
-            "updated_at": now_utc_iso()
+            "attending": True,
+            "class": self.klass,
+            "elite_spec": self.spec,
+            "wvw_role": self.role,
+            "display_name": interaction.user.display_name,
+            "updated_at": now_utc_iso(),
         }
         save_wvw_rsvp_data()
         await interaction.response.edit_message(content=f"✅ Tack! Bytte roll till **{self.role}**.", view=None)
@@ -822,12 +957,16 @@ class ProceedButton(discord.ui.Button):
     def __init__(self, klass, spec, role, label):
         super().__init__(label=label, style=discord.ButtonStyle.secondary)
         self.klass, self.spec, self.role = klass, spec, role
+
     async def callback(self, interaction: discord.Interaction):
         uid = interaction.user.id
         wvw_rsvp_data[uid] = {
-            "attending": True, "class": self.klass, "elite_spec": self.spec,
-            "wvw_role": self.role, "display_name": interaction.user.display_name,
-            "updated_at": now_utc_iso()
+            "attending": True,
+            "class": self.klass,
+            "elite_spec": self.spec,
+            "wvw_role": self.role,
+            "display_name": interaction.user.display_name,
+            "updated_at": now_utc_iso(),
         }
         save_wvw_rsvp_data()
         await interaction.response.edit_message(content=f"👍 Okej! Behåller **{self.role}**.", view=None)
@@ -847,7 +986,7 @@ class WvWRoleSelectView(discord.ui.View):
         self.select = discord.ui.Select(
             placeholder=f"Välj roll ({self.selected_class} · {self.selected_spec})...",
             options=options,
-            custom_id="wvw_role_select"
+            custom_id="wvw_role_select",
         )
 
         async def _on_select(interaction: discord.Interaction):
@@ -857,7 +996,7 @@ class WvWRoleSelectView(discord.ui.View):
             if chosen_role not in self.allowed_roles:
                 await interaction.response.send_message(
                     "❌ Ogiltigt val för denna specialization. Välj en roll från listan.",
-                    ephemeral=True
+                    ephemeral=True,
                 )
                 return
 
@@ -872,12 +1011,19 @@ class WvWRoleSelectView(discord.ui.View):
                 last_prompt[uid] = now_ts
                 examples = best_specs_for_role(missing, limit=2)
                 ex_str = f" (t.ex. {', '.join(examples)})" if examples else ""
-                txt = (f"⚖️ Vi saknar just nu **{missing}** för att få ihop nästa squad{ex_str}.\n"
-                       f"Vill du byta roll?")
+                txt = (
+                    f"⚖️ Vi saknar just nu **{missing}** för att få ihop nästa squad{ex_str}.\n"
+                    f"Vill du byta roll?"
+                )
                 await interaction.response.send_message(
                     txt,
-                    view=SuggestAltRoleView(self.selected_class, self.selected_spec, missing_role=missing, chosen_role=chosen_role),
-                    ephemeral=True
+                    view=SuggestAltRoleView(
+                        self.selected_class,
+                        self.selected_spec,
+                        missing_role=missing,
+                        chosen_role=chosen_role,
+                    ),
+                    ephemeral=True,
                 )
                 return
 
@@ -887,7 +1033,7 @@ class WvWRoleSelectView(discord.ui.View):
                 "elite_spec": self.selected_spec,
                 "wvw_role": chosen_role,
                 "display_name": interaction.user.display_name,
-                "updated_at": now_utc_iso()
+                "updated_at": now_utc_iso(),
             }
             save_wvw_rsvp_data()
 
@@ -895,7 +1041,7 @@ class WvWRoleSelectView(discord.ui.View):
             await interaction.response.send_message(
                 f"✅ Du kommer som **{self.selected_class} - {self.selected_spec}** "
                 f"(Tier {meta_now['tier']}) med roll **{chosen_role}** – tack!",
-                ephemeral=True
+                ephemeral=True,
             )
             await update_all_wvw_summaries(interaction.client)
 
@@ -1021,6 +1167,8 @@ async def on_ready():
     load_custom_roles()
     load_meta_overrides()
     load_squad_templates()
+    load_event_history()
+    load_wvw_event_history()
 
 # ----------------------------
 # Debugkommandon
@@ -1071,15 +1219,17 @@ async def clear_commands(ctx):
 @bot.tree.command(name="event", description="Hantera vanligt event")
 @app_commands.describe(
     action="start/add_channel/remove_channel/reset/export",
-    name="Valfritt namn på eventet (endast vid start)"
+    name="Valfritt namn på eventet (endast vid start)",
 )
-@app_commands.choices(action=[
-    app_commands.Choice(name="start", value="start"),
-    app_commands.Choice(name="add_channel", value="add_channel"),
-    app_commands.Choice(name="remove_channel", value="remove_channel"),
-    app_commands.Choice(name="reset", value="reset"),
-    app_commands.Choice(name="export", value="export")
-])
+@app_commands.choices(
+    action=[
+        app_commands.Choice(name="start", value="start"),
+        app_commands.Choice(name="add_channel", value="add_channel"),
+        app_commands.Choice(name="remove_channel", value="remove_channel"),
+        app_commands.Choice(name="reset", value="reset"),
+        app_commands.Choice(name="export", value="export"),
+    ]
+)
 async def event_command(interaction: discord.Interaction, action: str, name: str | None = None):
     channel_id = str(interaction.channel_id)
     
@@ -1148,9 +1298,12 @@ async def event_command(interaction: discord.Interaction, action: str, name: str
             await interaction.response.send_message("❌ Denna kanal är inte en del av något event.", ephemeral=True)
 
     elif action == "reset":
+        # Spara snapshot först
+        archive_current_event(closed_by=interaction.user.id)
+
         rsvp_data.clear()
         save_rsvp_data()
-        await interaction.response.send_message("🔄 Event-data nollställt.", ephemeral=True)
+        await interaction.response.send_message("🔄 Event-data nollställt (snapshot sparad i historiken).", ephemeral=True)
         await update_all_event_summaries(interaction.client)
 
     elif action == "export":
@@ -1179,32 +1332,55 @@ async def event_command(interaction: discord.Interaction, action: str, name: str
             logger.error(f"Fel vid export: {e}")
             await interaction.response.send_message("❌ Kunde inte exportera data.", ephemeral=True)
 
-@bot.tree.command(name="event_clear_all", description="Tar bort eventet från alla kanaler och nollställer all data")
+@bot.tree.command(
+    name="event_clear_all",
+    description="Tar bort både event och WvW-event från alla kanaler och nollställer all data (med snapshot)."
+)
 async def event_clear_all(interaction: discord.Interaction):
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("🚫 Du har inte behörighet att använda detta kommando.", ephemeral=True)
         return
 
-    global event_summary_channels
+    global event_summary_channels, wvw_summary_channels
+
+    # 🔐 Spara snapshots först
+    archive_current_event(closed_by=interaction.user.id)
+    archive_current_wvw_event(closed_by=interaction.user.id)
     
-    # Ta bort alla meddelanden
+    # 🧹 Ta bort alla sammanfattningsmeddelanden för vanliga event
     for channel_id, message_id in list(event_summary_channels.items()):
         try:
             channel = interaction.client.get_channel(int(channel_id)) or await interaction.client.fetch_channel(int(channel_id))
             message = await channel.fetch_message(message_id)
             await message.delete()
-        except:
+        except Exception:
             pass
     
-    # Rensa data
-    event_summary_channels.clear()
-    rsvp_data.clear()
+    # 🧹 Ta bort alla sammanfattningsmeddelanden för WvW-event
+    for channel_id, message_id in list(wvw_summary_channels.items()):
+        try:
+            channel = interaction.client.get_channel(int(channel_id)) or await interaction.client.fetch_channel(int(channel_id))
+            message = await channel.fetch_message(message_id)
+            await message.delete()
+        except Exception:
+            pass
     
-    # Spara
+    # Rensa all data i minnet
+    event_summary_channels.clear()
+    wvw_summary_channels.clear()
+    rsvp_data.clear()
+    wvw_rsvp_data.clear()
+    
+    # Spara till disk
     save_summary_channels()
     save_rsvp_data()
+    save_wvw_rsvp_data()
     
-    await interaction.response.send_message("✅ Event rensat från alla kanaler och alla RSVP nollställda.", ephemeral=True)
+    await interaction.response.send_message(
+        "✅ Både **Event** och **WvW-event** är nu rensade från alla kanaler och all RSVP-data är nollställd.\n"
+        "📦 Snapshot av deltagare/byggen sparad i `event_history.json` och `wvw_event_history.json`.",
+        ephemeral=True
+    )
 
 @bot.tree.command(name="wvw_event", description="Hantera WvW-event")
 @app_commands.describe(
@@ -1284,9 +1460,12 @@ async def wvw_event(interaction: discord.Interaction, action: str, wvw_name: str
             await interaction.response.send_message("❌ Denna kanal är inte en del av något WvW-event.", ephemeral=True)
 
     elif action == "reset":
+        # Spara historik först
+        archive_current_wvw_event(closed_by=interaction.user.id)
+
         wvw_rsvp_data.clear()
         save_wvw_rsvp_data()
-        await interaction.response.send_message("🔄 WvW-data nollställt.", ephemeral=True)
+        await interaction.response.send_message("🔄 WvW-data nollställt (snapshot sparad i historiken).", ephemeral=True)
         await update_all_wvw_summaries(interaction.client)
 
 @bot.tree.command(name="wvw_event_clear_all", description="Tar bort WvW-eventet från alla kanaler och nollställer all data")
@@ -1296,6 +1475,9 @@ async def wvw_event_clear_all(interaction: discord.Interaction):
         return
 
     global wvw_summary_channels
+    
+    # 👉 Spara historik först
+    archive_current_wvw_event(closed_by=interaction.user.id)
     
     # Ta bort alla meddelanden
     for channel_id, message_id in list(wvw_summary_channels.items()):
@@ -1314,7 +1496,10 @@ async def wvw_event_clear_all(interaction: discord.Interaction):
     save_summary_channels()
     save_wvw_rsvp_data()
     
-    await interaction.response.send_message("✅ WvW-event rensat från alla kanaler och alla RSVP nollställda.", ephemeral=True)
+    await interaction.response.send_message(
+        "✅ WvW-event rensat från alla kanaler och alla RSVP nollställda (snapshot sparad i historiken).",
+        ephemeral=True
+    )
 
 # ----------------------------
 # Custom Role Modal
@@ -1643,7 +1828,6 @@ async def show_stats(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed, ephemeral=False)
 
-
 # ----------------------------
 # ADMIN: RSVP Edit (DM med dropdowns)
 # ----------------------------
@@ -1727,7 +1911,6 @@ class AdminProceedButton(discord.ui.Button):
                 view=AdminWvWClassView(self.editor, self.target, attending_flag)
             )
 
-
 # ----- Legacy flow -----
 class AdminLegacyClassView(discord.ui.View):
     def __init__(self, editor: discord.User, target: discord.User, attending: bool):
@@ -1754,7 +1937,6 @@ class AdminLegacyClassView(discord.ui.View):
 
         self.class_select.callback = on_class
         self.add_item(self.class_select)
-
 
 class AdminLegacyRoleView(discord.ui.View):
     def __init__(self, editor: discord.User, target: discord.User, attending: bool, klass: str):
@@ -1798,7 +1980,6 @@ class AdminLegacyRoleView(discord.ui.View):
         self.role_select.callback = on_role
         self.add_item(self.role_select)
 
-
 # ----- WvW flow (class -> spec -> allowed roles) -----
 class AdminWvWClassView(discord.ui.View):
     def __init__(self, editor: discord.User, target: discord.User, attending: bool):
@@ -1826,7 +2007,6 @@ class AdminWvWClassView(discord.ui.View):
 
         self.class_select.callback = on_class
         self.add_item(self.class_select)
-
 
 class AdminWvWSpecView(discord.ui.View):
     def __init__(self, editor: discord.User, target: discord.User, attending: bool, klass: str, specs: list[str]):
@@ -1859,7 +2039,6 @@ class AdminWvWSpecView(discord.ui.View):
 
         self.spec_select.callback = on_spec
         self.add_item(self.spec_select)
-
 
 class AdminWvWRoleView(discord.ui.View):
     def __init__(self, editor: discord.User, target: discord.User, attending: bool, klass: str, spec: str, allowed_roles: list[str]):
@@ -1917,7 +2096,6 @@ class AdminWvWRoleView(discord.ui.View):
             view=None
         )
 
-
 class AdminWvWSaveButton(discord.ui.Button):
     def __init__(self, editor: discord.User, target: discord.User, attending: bool, klass: str, spec: str, role: str | None):
         super().__init__(label="Spara", style=discord.ButtonStyle.success)
@@ -1960,8 +2138,6 @@ async def rsvp_edit(interaction: discord.Interaction, user: discord.User):
     except Exception as e:
         logger.error(f"RSVP Edit DM error: {e}")
         await interaction.followup.send("❌ Kunde inte skicka DM. Har du DM-block på?", ephemeral=True)
-
-
 
 # ----------------------------
 # RSVP / LISTOR
