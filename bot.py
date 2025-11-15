@@ -8,6 +8,7 @@ from discord import app_commands
 import csv, io, json, logging, time
 import datetime
 from collections import Counter
+import uuid
 
 # ----------------------------
 # Konfiguration och logging
@@ -269,6 +270,7 @@ DATA_FILE = "rsvp_data.json"
 SUMMARY_CHANNELS_FILE = "summary_channels.json"
 WVW_DATA_FILE = "wvw_rsvp_data.json"
 WVW_SUMMARY_CHANNELS_FILE = "wvw_summary_channels.json"
+WVW_EVENT_NAMES_FILE = "wvw_event_names.json"
 
 EVENT_HISTORY_FILE = "event_history.json"
 WVW_EVENT_HISTORY_FILE = "wvw_event_history.json"
@@ -277,12 +279,13 @@ rsvp_data: dict[int, dict] = {}
 event_name: str = "Event"
 event_summary_channels: dict[str, int] = {}  # channel_id -> message_id
 
-wvw_rsvp_data: dict[int, dict] = {}
-wvw_event_name: str = "WvW Event"
-wvw_summary_channels: dict[str, int] = {}  # channel_id -> message_id
+# WvW data - event_id baserat
+wvw_rsvp_data: dict[str, dict[int, dict]] = {}  # {event_id: {user_id: {...}}}
+wvw_summary_channels: dict[str, dict] = {}  # {channel_id_eventid: {"message_id": int, "event_id": str}}
+wvw_event_names: dict[str, str] = {}  # {event_id: name}
 
 event_history: list[dict] = []
-wvw_event_history: list[dict] = []
+wvw_event_history: dict[str, list[dict]] = {}  # {event_id: [history_entries]}
 
 def load_rsvp_data():
     global rsvp_data
@@ -322,7 +325,7 @@ def save_rsvp_data():
         logger.error(f"Fel vid sparande av RSVP-data: {e}")
 
 def load_summary_channels():
-    global event_summary_channels, wvw_summary_channels
+    global event_summary_channels, wvw_summary_channels, wvw_event_names
     # Ladda event kanaler
     if os.path.exists(SUMMARY_CHANNELS_FILE):
         try:
@@ -342,6 +345,14 @@ def load_summary_channels():
             wvw_summary_channels = {}
     else:
         wvw_summary_channels = {}
+        
+    # Ladda WvW event namn
+    if os.path.exists(WVW_EVENT_NAMES_FILE):
+        try:
+            with open(WVW_EVENT_NAMES_FILE, "r") as f:
+                wvw_event_names = json.load(f)
+        except:
+            wvw_event_names = {}
 
 def save_summary_channels():
     try:
@@ -349,42 +360,59 @@ def save_summary_channels():
             json.dump(event_summary_channels, f)
         with open(WVW_SUMMARY_CHANNELS_FILE, "w") as f:
             json.dump(wvw_summary_channels, f)
+        with open(WVW_EVENT_NAMES_FILE, "w") as f:
+            json.dump(wvw_event_names, f)
     except Exception as e:
         logger.error(f"Fel vid sparande av kanaldata: {e}")
 
 # WvW data
 def load_wvw_rsvp_data():
-    global wvw_rsvp_data
+    global wvw_rsvp_data, wvw_event_history
     if os.path.exists(WVW_DATA_FILE):
         try:
             with open(WVW_DATA_FILE, "r") as f:
                 loaded = json.load(f)
             wvw_rsvp_data = {}
-            for k, v in loaded.items():
-                try:
-                    uid = int(k)
-                    if isinstance(v, dict):
-                        wvw_rsvp_data[uid] = {
-                            "attending": v.get("attending", False),
-                            "class": v.get("class"),
-                            "elite_spec": v.get("elite_spec"),
-                            "wvw_role": v.get("wvw_role"),
-                            "display_name": v.get("display_name", f"User_{uid}"),
-                            "updated_at": v.get("updated_at", now_utc_iso()),
-                        }
-                        wvw_rsvp_data[uid]["updated_at"] = parse_iso(wvw_rsvp_data[uid]["updated_at"]).isoformat()
-                except (ValueError, TypeError):
-                    continue
+            for event_id, event_data in loaded.items():
+                wvw_rsvp_data[event_id] = {}
+                for k, v in event_data.items():
+                    try:
+                        uid = int(k)
+                        if isinstance(v, dict):
+                            wvw_rsvp_data[event_id][uid] = {
+                                "attending": v.get("attending", False),
+                                "class": v.get("class"),
+                                "elite_spec": v.get("elite_spec"),
+                                "wvw_role": v.get("wvw_role"),
+                                "display_name": v.get("display_name", f"User_{uid}"),
+                                "updated_at": v.get("updated_at", now_utc_iso()),
+                            }
+                            wvw_rsvp_data[event_id][uid]["updated_at"] = parse_iso(wvw_rsvp_data[event_id][uid]["updated_at"]).isoformat()
+                    except (ValueError, TypeError):
+                        continue
         except Exception as e:
             logger.error(f"Fel vid laddning av WvW RSVP-data: {e}")
             wvw_rsvp_data = {}
     else:
         wvw_rsvp_data = {}
+        
+    # Ladda WvW event historik
+    if os.path.exists(WVW_EVENT_HISTORY_FILE):
+        try:
+            with open(WVW_EVENT_HISTORY_FILE, "r", encoding="utf-8") as f:
+                wvw_event_history = json.load(f)
+        except Exception as e:
+            logger.error(f"Fel vid laddning av WvW-event-historik: {e}")
+            wvw_event_history = {}
+    else:
+        wvw_event_history = {}
 
 def save_wvw_rsvp_data():
-    for v in wvw_rsvp_data.values():
-        if not v.get("updated_at"):
-            v["updated_at"] = now_utc_iso()
+    # Spara tidsstämplar
+    for event_data in wvw_rsvp_data.values():
+        for v in event_data.values():
+            if not v.get("updated_at"):
+                v["updated_at"] = now_utc_iso()
     try:
         with open(WVW_DATA_FILE, "w") as f:
             json.dump(wvw_rsvp_data, f)
@@ -412,9 +440,9 @@ def load_wvw_event_history():
                 wvw_event_history = json.load(f)
         except Exception as e:
             logger.error(f"Fel vid laddning av WvW-event-historik: {e}")
-            wvw_event_history = []
+            wvw_event_history = {}
     else:
-        wvw_event_history = []
+        wvw_event_history = {}
 
 # ----- Historik-archivers -----
 def archive_current_event(closed_by: int | None = None):
@@ -449,20 +477,23 @@ def archive_current_event(closed_by: int | None = None):
     except Exception as e:
         logger.error(f"Fel vid sparande av event-historik: {e}")
 
-def archive_current_wvw_event(closed_by: int | None = None):
-    """Spara en snapshot av nuvarande WvW-event till historikfil."""
+def archive_current_wvw_event(event_id: str, closed_by: int | None = None):
+    """Spara en snapshot av ett specifikt WvW-event till historikfil."""
     global wvw_event_history
-    if not wvw_rsvp_data:
+    event_data = wvw_rsvp_data.get(event_id, {})
+    if not event_data:
         return
 
+    event_name_local = wvw_event_names.get(event_id, f"WvW Event {event_id[:8]}")
+    
     snapshot = {
-        "name": wvw_event_name,
+        "name": event_name_local,
         "closed_at": now_utc_iso(),
         "closed_by": closed_by,
         "entries": [],
     }
 
-    for uid, d in wvw_rsvp_data.items():
+    for uid, d in event_data.items():
         snapshot["entries"].append(
             {
                 "user_id": uid,
@@ -475,7 +506,10 @@ def archive_current_wvw_event(closed_by: int | None = None):
             }
         )
 
-    wvw_event_history.append(snapshot)
+    if event_id not in wvw_event_history:
+        wvw_event_history[event_id] = []
+    wvw_event_history[event_id].append(snapshot)
+    
     try:
         with open(WVW_EVENT_HISTORY_FILE, "w", encoding="utf-8") as f:
             json.dump(wvw_event_history, f, ensure_ascii=False, indent=2)
@@ -502,17 +536,32 @@ def clean_old_data(days: int = AUTO_CLEAN_DAYS) -> int:
         save_rsvp_data()
     
     # Rensa WvW RSVP
+    total_deleted = len(to_del)
     to_del_wvw = []
-    for uid, v in wvw_rsvp_data.items():
-        ts = parse_iso(v.get("updated_at", now_utc_iso()))
-        if ts < cutoff:
-            to_del_wvw.append(uid)
-    for uid in to_del_wvw:
-        del wvw_rsvp_data[uid]
+    for event_id, event_data in wvw_rsvp_data.items():
+        for uid, v in event_data.items():
+            ts = parse_iso(v.get("updated_at", now_utc_iso()))
+            if ts < cutoff:
+                to_del_wvw.append((event_id, uid))
+    for event_id, uid in to_del_wvw:
+        del wvw_rsvp_data[event_id][uid]
+        # Ta bort tomma event
+        if not wvw_rsvp_data[event_id]:
+            del wvw_rsvp_data[event_id]
+            if event_id in wvw_event_names:
+                del wvw_event_names[event_id]
+            # Ta bort alla kanal-referenser för detta event
+            keys_to_remove = []
+            for channel_key, info in wvw_summary_channels.items():
+                if info.get("event_id") == event_id:
+                    keys_to_remove.append(channel_key)
+            for key in keys_to_remove:
+                del wvw_summary_channels[key]
     if to_del_wvw:
         save_wvw_rsvp_data()
+        save_summary_channels()
     
-    return len(to_del) + len(to_del_wvw)
+    return total_deleted + len(to_del_wvw)
 
 # ----------------------------
 # Squad Formation – Balanserad builder (analys)
@@ -595,7 +644,7 @@ def preview_next_missing_role(attending_pairs_wo_self: list[tuple[int, dict]]) -
 
     return None
 
-def build_squads_balanced():
+def build_squads_balanced(event_id: str):
     """
     Returnerar:
       commander: tuple[int, dict] | None
@@ -603,7 +652,8 @@ def build_squads_balanced():
       overflow: list[tuple[int, dict]]
       reason: dict   # {"type": "cap"/"imbalance"/"none", "message": "...", "counts": {...}}
     """
-    attending = [(uid, d) for uid, d in wvw_rsvp_data.items() if d.get("attending") and d.get("wvw_role")]
+    event_data = wvw_rsvp_data.get(event_id, {})
+    attending = [(uid, d) for uid, d in event_data.items() if d.get("attending") and d.get("wvw_role")]
     attending.sort(key=lambda t: _rank_key(t[0], t[1]))
 
     # 1) Global Commander
@@ -791,18 +841,20 @@ class RSVPView(discord.ui.View):
 
 
 class WvWRSVPView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, event_id: str):
         super().__init__(timeout=None)
+        self.event_id = event_id
 
     @discord.ui.button(label="Ja, jag kommer", style=discord.ButtonStyle.success, custom_id="wvw_rsvp_yes_button")
     async def yes_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         uid = interaction.user.id
-        if uid in wvw_rsvp_data and wvw_rsvp_data[uid]["attending"]:
+        event_data = wvw_rsvp_data.get(self.event_id, {})
+        if uid in event_data and event_data[uid]["attending"]:
 
-            wvw_rsvp_data[uid]["updated_at"] = now_utc_iso()
+            event_data[uid]["updated_at"] = now_utc_iso()
             save_wvw_rsvp_data()
 
-            curr = wvw_rsvp_data.get(uid, {})
+            curr = event_data.get(uid, {})
             klass = curr.get("class") or "Okänd klass"
             spec = curr.get("elite_spec") or "okänd spec"
             role = curr.get("wvw_role") or "okänd roll"
@@ -810,18 +862,19 @@ class WvWRSVPView(discord.ui.View):
             await interaction.response.send_message(
                 f"✅ Du är anmäld som **{klass} - {spec}** med roll **{role}**.\n"
                 f"Vill du ändra? Välj klass → spec → roll:",
-                view=WvWClassSelectView(),
+                view=WvWClassSelectView(self.event_id),
                 ephemeral=True,
             )
-            await update_all_wvw_summaries(interaction.client)
+            await update_wvw_summary(interaction.client, self.event_id)
             return
 
-        await interaction.response.send_message("Välj din klass:", view=WvWClassSelectView(), ephemeral=True)
+        await interaction.response.send_message("Välj din klass:", view=WvWClassSelectView(self.event_id), ephemeral=True)
 
     @discord.ui.button(label="Nej, jag kommer inte", style=discord.ButtonStyle.danger, custom_id="wvw_rsvp_no_button")
     async def no_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         uid = interaction.user.id
-        wvw_rsvp_data[uid] = {
+        event_data = wvw_rsvp_data.setdefault(self.event_id, {})
+        event_data[uid] = {
             "attending": False,
             "class": None,
             "elite_spec": None,
@@ -831,7 +884,7 @@ class WvWRSVPView(discord.ui.View):
         }
         save_wvw_rsvp_data()
         await interaction.response.send_message("❌ Okej! Markerat att du **inte kommer**.", ephemeral=True)
-        await update_all_wvw_summaries(interaction.client)
+        await update_wvw_summary(interaction.client, self.event_id)
 
 # Legacy Views
 class ClassSelectView(discord.ui.View):
@@ -875,8 +928,9 @@ class RoleSelectView(discord.ui.View):
 
 # WvW Views
 class WvWClassSelectView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, event_id: str):
         super().__init__(timeout=300)
+        self.event_id = event_id
 
     @discord.ui.select(
         placeholder="Välj din klass...",
@@ -887,13 +941,14 @@ class WvWClassSelectView(discord.ui.View):
         await interaction.response.defer(ephemeral=True)
         await interaction.followup.send(
             "Välj din elite specialization:",
-            view=WvWEliteSpecSelectView(select.values[0]),
+            view=WvWEliteSpecSelectView(self.event_id, select.values[0]),
             ephemeral=True,
         )
 
 class WvWEliteSpecSelectView(discord.ui.View):
-    def __init__(self, selected_class: str):
+    def __init__(self, event_id: str, selected_class: str):
         super().__init__(timeout=300)
+        self.event_id = event_id
         self.selected_class = selected_class
 
         options = [
@@ -916,7 +971,7 @@ class WvWEliteSpecSelectView(discord.ui.View):
                 f"Tier: {meta['tier']}\n"
                 f"Rekommenderade roller: {', '.join(meta['roles'])}\n\n"
                 "Välj din roll:",
-                view=WvWRoleSelectView(self.selected_class, selected_spec),
+                view=WvWRoleSelectView(self.event_id, self.selected_class, selected_spec),
                 ephemeral=True,
             )
 
@@ -925,23 +980,26 @@ class WvWEliteSpecSelectView(discord.ui.View):
 
 # --- Mjuk prompt + cooldown i roll-steget (med meta-exempel) ---
 class SuggestAltRoleView(discord.ui.View):
-    def __init__(self, klass, spec, missing_role, chosen_role):
+    def __init__(self, event_id: str, klass, spec, missing_role, chosen_role):
         super().__init__(timeout=60)
+        self.event_id = event_id
         self.klass, self.spec = klass, spec
         self.missing_role = missing_role
         self.chosen_role = chosen_role
 
-        self.add_item(RoleChoiceButton(klass, spec, missing_role, label=f"Byt till {missing_role}"))
-        self.add_item(ProceedButton(klass, spec, chosen_role, label="Behåll mitt val"))
+        self.add_item(RoleChoiceButton(event_id, klass, spec, missing_role, label=f"Byt till {missing_role}"))
+        self.add_item(ProceedButton(event_id, klass, spec, chosen_role, label="Behåll mitt val"))
 
 class RoleChoiceButton(discord.ui.Button):
-    def __init__(self, klass, spec, role, label):
+    def __init__(self, event_id: str, klass, spec, role, label):
         super().__init__(label=label, style=discord.ButtonStyle.primary)
+        self.event_id = event_id
         self.klass, self.spec, self.role = klass, spec, role
 
     async def callback(self, interaction: discord.Interaction):
         uid = interaction.user.id
-        wvw_rsvp_data[uid] = {
+        event_data = wvw_rsvp_data.setdefault(self.event_id, {})
+        event_data[uid] = {
             "attending": True,
             "class": self.klass,
             "elite_spec": self.spec,
@@ -951,16 +1009,18 @@ class RoleChoiceButton(discord.ui.Button):
         }
         save_wvw_rsvp_data()
         await interaction.response.edit_message(content=f"✅ Tack! Bytte roll till **{self.role}**.", view=None)
-        await update_all_wvw_summaries(interaction.client)
+        await update_wvw_summary(interaction.client, self.event_id)
 
 class ProceedButton(discord.ui.Button):
-    def __init__(self, klass, spec, role, label):
+    def __init__(self, event_id: str, klass, spec, role, label):
         super().__init__(label=label, style=discord.ButtonStyle.secondary)
+        self.event_id = event_id
         self.klass, self.spec, self.role = klass, spec, role
 
     async def callback(self, interaction: discord.Interaction):
         uid = interaction.user.id
-        wvw_rsvp_data[uid] = {
+        event_data = wvw_rsvp_data.setdefault(self.event_id, {})
+        event_data[uid] = {
             "attending": True,
             "class": self.klass,
             "elite_spec": self.spec,
@@ -970,12 +1030,13 @@ class ProceedButton(discord.ui.Button):
         }
         save_wvw_rsvp_data()
         await interaction.response.edit_message(content=f"👍 Okej! Behåller **{self.role}**.", view=None)
-        await update_all_wvw_summaries(interaction.client)
+        await update_wvw_summary(interaction.client, self.event_id)
 
 class WvWRoleSelectView(discord.ui.View):
     """Rollväljare som bara visar roller tillåtna för vald klass/spec."""
-    def __init__(self, selected_class: str, selected_spec: str):
+    def __init__(self, event_id: str, selected_class: str, selected_spec: str):
         super().__init__(timeout=300)
+        self.event_id = event_id
         self.selected_class = selected_class
         self.selected_spec = selected_spec
 
@@ -992,6 +1053,7 @@ class WvWRoleSelectView(discord.ui.View):
         async def _on_select(interaction: discord.Interaction):
             uid = interaction.user.id
             chosen_role = self.select.values[0]
+            event_data = wvw_rsvp_data.setdefault(self.event_id, {})
 
             if chosen_role not in self.allowed_roles:
                 await interaction.response.send_message(
@@ -1004,7 +1066,7 @@ class WvWRoleSelectView(discord.ui.View):
             last = last_prompt.get(uid, 0)
             can_prompt = (now_ts - last) >= PROMPT_COOLDOWN_SECONDS
 
-            attending_wo_self = [(u, d) for (u, d) in wvw_rsvp_data.items() if d.get("attending") and u != uid]
+            attending_wo_self = [(u, d) for (u, d) in event_data.items() if d.get("attending") and u != uid]
             missing = preview_next_missing_role(attending_wo_self)
 
             if can_prompt and missing and missing != chosen_role and (missing in self.allowed_roles):
@@ -1018,6 +1080,7 @@ class WvWRoleSelectView(discord.ui.View):
                 await interaction.response.send_message(
                     txt,
                     view=SuggestAltRoleView(
+                        self.event_id,
                         self.selected_class,
                         self.selected_spec,
                         missing_role=missing,
@@ -1027,7 +1090,7 @@ class WvWRoleSelectView(discord.ui.View):
                 )
                 return
 
-            wvw_rsvp_data[uid] = {
+            event_data[uid] = {
                 "attending": True,
                 "class": self.selected_class,
                 "elite_spec": self.selected_spec,
@@ -1043,7 +1106,7 @@ class WvWRoleSelectView(discord.ui.View):
                 f"(Tier {meta_now['tier']}) med roll **{chosen_role}** – tack!",
                 ephemeral=True,
             )
-            await update_all_wvw_summaries(interaction.client)
+            await update_wvw_summary(interaction.client, self.event_id)
 
         self.select.callback = _on_select
         self.add_item(self.select)
@@ -1087,29 +1150,36 @@ async def update_all_event_summaries(client: commands.Bot):
         except Exception as e:
             logger.error(f"Fel vid uppdatering av sammanfattningsmeddelande för kanal {channel_id}: {e}")
 
-async def update_all_wvw_summaries(client: commands.Bot):
-    """Uppdatera alla WvW-sammanfattningar i alla kanaler"""
-    global wvw_summary_channels
+async def update_wvw_summary(client: commands.Bot, event_id: str):
+    """Uppdatera WvW-sammanfattning för ett specifikt event"""
+    event_data = wvw_rsvp_data.get(event_id, {})
+    event_name_local = wvw_event_names.get(event_id, f"WvW Event {event_id[:8]}")
     
-    channels_to_update = list(wvw_summary_channels.items())
+    channels_to_update = []
+    for channel_key, info in wvw_summary_channels.items():
+        if info.get("event_id") == event_id:
+            channels_to_update.append((channel_key, info["message_id"]))
     
-    for channel_id, message_id in channels_to_update:
+    for channel_key, message_id in channels_to_update:
         try:
+            # Extrahera channel_id från channel_key
+            channel_id = channel_key.split('_')[0]
             channel = client.get_channel(int(channel_id)) or await client.fetch_channel(int(channel_id))
             message = await channel.fetch_message(message_id)
         except discord.NotFound:
-            if channel_id in wvw_summary_channels:
-                del wvw_summary_channels[channel_id]
+            if channel_key in wvw_summary_channels:
+                del wvw_summary_channels[channel_key]
                 save_summary_channels()
             continue
         except Exception as e:
-            logger.error(f"Fel vid hämtning av WvW sammanfattningsmeddelande för kanal {channel_id}: {e}")
+            logger.error(f"Fel vid hämtning av WvW sammanfattningsmeddelande för kanal {channel_key}: {e}")
             continue
 
         attending, not_attending = [], []
-        for uid, data in wvw_rsvp_data.items():
+        for uid, data in event_data.items():
             name = data.get("display_name", f"<@{uid}>")
             if data["attending"]:
+
                 klass = data.get("class", "Okänd klass")
                 elite_spec = data.get("elite_spec", "")
                 wvw_role = data.get("wvw_role", "Okänd roll")
@@ -1118,14 +1188,14 @@ async def update_all_wvw_summaries(client: commands.Bot):
             else:
                 not_attending.append(f"• **{name}**")
 
-        embed = discord.Embed(title=f"🛡️ WvW Event – {wvw_event_name}", color=0xe74c3c)
+        embed = discord.Embed(title=f"🛡️ {event_name_local}", color=0xe74c3c)
         embed.add_field(name="✅ Ja:", value="\n".join(attending) if attending else "-", inline=False)
         embed.add_field(name="❌ Nej:", value="\n".join(not_attending) if not_attending else "-", inline=False)
 
         try:
             await message.edit(embed=embed)
         except Exception as e:
-            logger.error(f"Fel vid uppdatering av WvW sammanfattningsmeddelande för kanal {channel_id}: {e}")
+            logger.error(f"Fel vid uppdatering av WvW sammanfattningsmeddelande för kanal {channel_key}: {e}")
 
 # ----------------------------
 # Bot Setup med auto guild sync
@@ -1138,8 +1208,22 @@ GUILD_ID = os.getenv("DISCORD_GUILD_ID")
 
 class Bot(commands.Bot):
     async def setup_hook(self):
+        # Ladda all persistent data innan vi registrerar views
+        load_rsvp_data()
+        load_wvw_rsvp_data()
+        load_summary_channels()
+        load_custom_roles()
+        load_meta_overrides()
+        load_squad_templates()
+        load_event_history()
+        # load_wvw_event_history() behövs inte separat, då det redan görs i load_wvw_rsvp_data()
+
+        # Persistent views
         self.add_view(RSVPView())
-        self.add_view(WvWRSVPView())
+        # Lägg till en persistent view per aktivt WvW-event
+        for event_id in wvw_rsvp_data.keys():
+            self.add_view(WvWRSVPView(event_id))
+
         try:
             # 1) Synka GLOBALT (alla servrar – propagerar i Discord)
             synced_global = await self.tree.sync()
@@ -1161,14 +1245,6 @@ bot = Bot(command_prefix=commands.when_mentioned_or("!"), intents=intents)
 @bot.event
 async def on_ready():
     logger.info(f"{bot.user} är igång som Commander Livia!")
-    load_rsvp_data()
-    load_wvw_rsvp_data()
-    load_summary_channels()
-    load_custom_roles()
-    load_meta_overrides()
-    load_squad_templates()
-    load_event_history()
-    load_wvw_event_history()
 
 # ----------------------------
 # Debugkommandon
@@ -1351,7 +1427,10 @@ async def event_clear_all(interaction: discord.Interaction):
 
     # 🔐 Spara snapshots först
     archive_current_event(closed_by=interaction.user.id)
-    archive_current_wvw_event(closed_by=interaction.user.id)
+    
+    # Arkivera alla WvW events
+    for event_id in list(wvw_rsvp_data.keys()):
+        archive_current_wvw_event(event_id, closed_by=interaction.user.id)
     
     # 🧹 Ta bort alla sammanfattningsmeddelanden för vanliga event
     for channel_id, message_id in list(event_summary_channels.items()):
@@ -1366,14 +1445,15 @@ async def event_clear_all(interaction: discord.Interaction):
             continue
     
     # 🧹 Ta bort alla sammanfattningsmeddelanden för WvW-event
-    for channel_id, message_id in list(wvw_summary_channels.items()):
+    for channel_key, info in list(wvw_summary_channels.items()):
         try:
+            channel_id = channel_key.split('_')[0]
             channel = interaction.client.get_channel(int(channel_id)) \
                       or await interaction.client.fetch_channel(int(channel_id))
-            message = await channel.fetch_message(message_id)
+            message = await channel.fetch_message(info["message_id"])
             await message.delete()
         except Exception as e:
-            logger.warning(f"Misslyckades ta bort WvW-sammanfattning i kanal {channel_id}: {e}")
+            logger.warning(f"Misslyckades ta bort WvW-sammanfattning i kanal {channel_key}: {e}")
             continue
     
     # Rensa all data i minnet
@@ -1381,6 +1461,7 @@ async def event_clear_all(interaction: discord.Interaction):
     wvw_summary_channels.clear()
     rsvp_data.clear()
     wvw_rsvp_data.clear()
+    wvw_event_names.clear()
     
     # Spara till disk
     save_summary_channels()
@@ -1399,14 +1480,14 @@ async def event_clear_all(interaction: discord.Interaction):
     description="Hantera WvW-event"
 )
 @app_commands.describe(
-    action="start/add_channel/remove_channel/reset",
-    wvw_name="Valfritt namn på WvW-eventet (endast vid start)"
+    action="start/remove_channel/reset/list",
+    wvw_name="Namn på WvW-eventet (vid start)"
 )
 @app_commands.choices(action=[
     app_commands.Choice(name="start", value="start"),
-    app_commands.Choice(name="add_channel", value="add_channel"),
     app_commands.Choice(name="remove_channel", value="remove_channel"),
-    app_commands.Choice(name="reset", value="reset")
+    app_commands.Choice(name="reset", value="reset"),
+    app_commands.Choice(name="list", value="list")
 ])
 async def wvw_event(
     interaction: discord.Interaction,
@@ -1422,129 +1503,132 @@ async def wvw_event(
         )
         return
 
-    global wvw_event_name
-
-    # För att slippa "Unknown interaction" om något tar lite tid
     await interaction.response.defer(ephemeral=True)
 
     if action == "start":
-        wvw_event_name = wvw_name or "WvW Event"
+        if not wvw_name:
+            await interaction.followup.send("❌ Du måste ange ett namn för eventet.", ephemeral=True)
+            return
+            
+        event_id = str(uuid.uuid4())
+        wvw_event_name = wvw_name
+        wvw_event_names[event_id] = wvw_event_name
+        wvw_rsvp_data[event_id] = {}
+        
         try:
             # RSVP-knappar
             await interaction.channel.send(
-                f"🛡️ RSVP till WvW-eventet **{wvw_event_name}**!",
-                view=WvWRSVPView()
+                f"🛡️ RSVP till **{wvw_event_name}**! (ID: `{event_id[:8]}`)",
+                view=WvWRSVPView(event_id)
             )
 
             # Sammanfattnings-embed
             summary_msg = await interaction.channel.send(
                 embed=discord.Embed(
-                    title=f"🛡️ WvW Event – {wvw_event_name}",
+                    title=f"🛡️ {wvw_event_name}",
                     description="Laddar..."
                 )
             )
 
-            wvw_summary_channels[channel_id] = summary_msg.id
+            wvw_summary_channels[f"{channel_id}_{event_id[:8]}"] = {"message_id": summary_msg.id, "event_id": event_id}
             save_summary_channels()
 
             await interaction.followup.send(
-                f"✅ WvW Event **{wvw_event_name}** startat! "
-                f"Denna kanal är nu aktiv.",
+                f"✅ WvW Event **{wvw_event_name}** (ID: `{event_id[:8]}`) startat!",
                 ephemeral=True
             )
-            await update_all_wvw_summaries(interaction.client)
+            await update_wvw_summary(interaction.client, event_id)
         
         except Exception as e:
-            # logga full stacktrace i konsolen
             logger.exception(f"Fel vid start av WvW event")
-
-            # visa själva felet i Discord så vi ser vad som händer
             await interaction.followup.send(
                 f"❌ Kunde inte starta WvW-eventet:\n`{type(e).__name__}: {e}`",
                 ephemeral=True
             )
 
-        
-    elif action == "add_channel":
-        if not wvw_summary_channels:
-            await interaction.followup.send(
-                "❌ Inget aktivt WvW-event. "
-                "Starta ett först med `/wvw_event start`.",
-                ephemeral=True
-            )
+    elif action == "list":
+        if not wvw_rsvp_data:
+            await interaction.followup.send("❌ Inga WvW-event aktiva.", ephemeral=True)
             return
-
-        try:
-            await interaction.channel.send(
-                f"🛡️ RSVP till WvW-eventet **{wvw_event_name}**!",
-                view=WvWRSVPView()
-            )
-            summary_msg = await interaction.channel.send(
-                embed=discord.Embed(
-                    title=f"🛡️ WvW Event – {wvw_event_name}",
-                    description="Laddar..."
-                )
-            )
-
-            wvw_summary_channels[channel_id] = summary_msg.id
-            save_summary_channels()
-
-            await interaction.followup.send(
-                f"✅ Denna kanal är nu en del av "
-                f"WvW-eventet **{wvw_event_name}**!",
-                ephemeral=True
-            )
-            await update_all_wvw_summaries(interaction.client)
-
-        except Exception as e:
-            logger.error(f"Fel vid tillägg av WvW-kanal: {e}")
-            await interaction.followup.send(
-                "❌ Kunde inte lägga till kanalen.",
-                ephemeral=True
-            )
+            
+        event_list = []
+        for eid, data in wvw_rsvp_data.items():
+            name = wvw_event_names.get(eid, f"WvW Event {eid[:8]}")
+            attending_count = sum(1 for d in data.values() if d.get("attending"))
+            total_count = len(data)
+            event_list.append(f"• `{eid[:8]}` - **{name}** ({attending_count}/{total_count} attending)")
+            
+        embed = discord.Embed(
+            title="🛡️ Aktiva WvW-events",
+            description="\n".join(event_list) if event_list else "Inga aktiva events",
+            color=0xe74c3c
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     elif action == "remove_channel":
-        if channel_id in wvw_summary_channels:
-            try:
-                channel = (
-                    interaction.client.get_channel(int(channel_id))
-                    or await interaction.client.fetch_channel(int(channel_id))
-                )
-                msg_id = wvw_summary_channels[channel_id]
-                msg = await channel.fetch_message(msg_id)
-                await msg.delete()
-            except Exception as e:
-                logger.warning(
-                    f"Kunde inte ta bort WvW-sammanfattningsmeddelande i "
-                    f"kanal {channel_id}: {e}"
-                )
-
-            del wvw_summary_channels[channel_id]
-            save_summary_channels()
-
+        # Ta bort alla events från denna kanal
+        removed_events = []
+        keys_to_remove = []
+        
+        for channel_key, info in list(wvw_summary_channels.items()):
+            base_channel_id = channel_key.split('_')[0]  # Ta bort event-ID delen
+            if base_channel_id == channel_id:
+                try:
+                    channel = (
+                        interaction.client.get_channel(int(channel_id))
+                        or await interaction.client.fetch_channel(int(channel_id))
+                    )
+                    msg = await channel.fetch_message(info["message_id"])
+                    await msg.delete()
+                    removed_events.append(wvw_event_names.get(info["event_id"], info["event_id"][:8]))
+                except Exception as e:
+                    logger.warning(f"Kunde inte ta bort meddelande: {e}")
+                
+                keys_to_remove.append(channel_key)
+        
+        for key in keys_to_remove:
+            del wvw_summary_channels[key]
+        
+        save_summary_channels()
+        
+        if removed_events:
             await interaction.followup.send(
-                "✅ Denna kanal är nu borttagen från WvW-eventet.",
+                f"✅ Tog bort följande events från kanalen:\n" + 
+                "\n".join([f"• {name}" for name in removed_events]),
                 ephemeral=True
             )
         else:
-            await interaction.followup.send(
-                "❌ Denna kanal är inte en del av något WvW-event.",
-                ephemeral=True
-            )
+            await interaction.followup.send("❌ Inga events hittades i denna kanal.", ephemeral=True)
 
     elif action == "reset":
-        # snapshot före wipe
-        archive_current_wvw_event(closed_by=interaction.user.id)
-
-        wvw_rsvp_data.clear()
-        save_wvw_rsvp_data()
-
-        await interaction.followup.send(
-            "🔄 WvW-data nollställt "
-            "(snapshot sparad i historiken).",
-            ephemeral=True
-        )
-        await update_all_wvw_summaries(interaction.client)
+        # Reset för alla events i denna kanal
+        reset_events = []
+        keys_to_reset = []
+        
+        for channel_key, info in list(wvw_summary_channels.items()):
+            base_channel_id = channel_key.split('_')[0]
+            if base_channel_id == channel_id:
+                event_id = info["event_id"]
+                # snapshot före wipe
+                archive_current_wvw_event(event_id, closed_by=interaction.user.id)
+                
+                if event_id in wvw_rsvp_data:
+                    wvw_rsvp_data[event_id].clear()
+                reset_events.append(wvw_event_names.get(event_id, event_id[:8]))
+                keys_to_reset.append(event_id)
+        
+        if keys_to_reset:
+            save_wvw_rsvp_data()
+            for eid in keys_to_reset:
+                await update_wvw_summary(interaction.client, eid)
+            
+            await interaction.followup.send(
+                f"✅ Nollställde följande events:\n" + 
+                "\n".join([f"• {name}" for name in reset_events]),
+                ephemeral=True
+            )
+        else:
+            await interaction.followup.send("❌ Inga events hittades i denna kanal.", ephemeral=True)
 
 
 @bot.tree.command(
@@ -1563,24 +1647,25 @@ async def wvw_event_clear_all(interaction: discord.Interaction):
 
     global wvw_summary_channels
 
-    # snapshot först
-    archive_current_wvw_event(closed_by=interaction.user.id)
+    # snapshot först för alla events
+    for event_id in list(wvw_rsvp_data.keys()):
+        archive_current_wvw_event(event_id, closed_by=interaction.user.id)
 
-    for channel_id, message_id in list(wvw_summary_channels.items()):
+    for channel_key, info in list(wvw_summary_channels.items()):
         try:
+            channel_id = channel_key.split('_')[0]
             channel = (
                 interaction.client.get_channel(int(channel_id))
                 or await interaction.client.fetch_channel(int(channel_id))
             )
-            msg = await channel.fetch_message(message_id)
+            msg = await channel.fetch_message(info["message_id"])
             await msg.delete()
         except Exception as e:
-            logger.warning(
-                f"Misslyckades ta bort WvW-sammanfattning i kanal {channel_id}: {e}"
-            )
+            logger.warning(f"Misslyckades ta bort WvW-sammanfattning i kanal {channel_key}: {e}")
 
     wvw_summary_channels.clear()
     wvw_rsvp_data.clear()
+    wvw_event_names.clear()
 
     save_summary_channels()
     save_wvw_rsvp_data()
@@ -1590,7 +1675,6 @@ async def wvw_event_clear_all(interaction: discord.Interaction):
         "nollställda (snapshot sparad i historiken).",
         ephemeral=True
     )
-
 
 # ----------------------------
 # Custom Role Modal
@@ -1823,10 +1907,31 @@ async def meta_bulk_import(interaction: discord.Interaction, file: discord.Attac
 # WvW-KOMMANDON (Analys & Stats)
 # ----------------------------
 @bot.tree.command(name="squad_analyze", description="Analys: visar balanserade squads (max 10) och vad som saknas")
-async def squad_analyze(interaction: discord.Interaction):
-    commander, squads, overflow, reason = build_squads_balanced()
+@app_commands.describe(event_id="ID för det specifika WvW-eventet (första 8 tecken)")
+async def squad_analyze(interaction: discord.Interaction, event_id: str | None = None):
+    # Hitta rätt event_id
+    target_event_id = None
+    
+    if event_id:
+        # Sök efter exakt matchning eller början med event_id
+        for eid in wvw_rsvp_data.keys():
+            if eid.startswith(event_id) or eid[:8] == event_id:
+                target_event_id = eid
+                break
+        if not target_event_id:
+            await interaction.response.send_message("❌ Ogiltigt event-ID. Använd `/wvw_event list` för att se tillgängliga events.", ephemeral=True)
+            return
+    else:
+        # Om inget event_id anges, använd första tillgängliga
+        if not wvw_rsvp_data:
+            await interaction.response.send_message("❌ Inga WvW-event aktiva.", ephemeral=True)
+            return
+        target_event_id = next(iter(wvw_rsvp_data.keys()))
+    
+    commander, squads, overflow, reason = build_squads_balanced(target_event_id)
+    event_name_local = wvw_event_names.get(target_event_id, f"WvW Event {target_event_id[:8]}")
 
-    embed = discord.Embed(title="🛡️ WvW Squad-analys (balanserad)", color=0xe74c3c)
+    embed = discord.Embed(title=f"🛡️ WvW Squad-analys – {event_name_local}", color=0xe74c3c)
 
     # Commander
     if commander:
@@ -1887,15 +1992,38 @@ async def squad_analyze(interaction: discord.Interaction):
     else:
         embed.add_field(name="📋 Overflow", value="_Ingen overflow_", inline=False)
 
-    total_attending = sum(1 for d in wvw_rsvp_data.values() if d.get("attending"))
+    total_attending = sum(1 for d in wvw_rsvp_data.get(target_event_id, {}).values() if d.get("attending"))
     embed.set_footer(text=f"Totalt attending: {total_attending} | 1 global Commander | Max {MAX_SQUADS} squads")
 
     await interaction.response.send_message(embed=embed, ephemeral=False)
 
 @bot.tree.command(name="show_stats", description="Visar statistik per klass och WvW-roll")
-async def show_stats(interaction: discord.Interaction):
-    attending = {uid: d for uid, d in wvw_rsvp_data.items() if d.get("attending")}
-    total = len(wvw_rsvp_data)
+@app_commands.describe(event_id="ID för det specifika WvW-eventet (första 8 tecken)")
+async def show_stats(interaction: discord.Interaction, event_id: str | None = None):
+    # Hitta rätt event_id
+    target_event_id = None
+    
+    if event_id:
+        # Sök efter exakt matchning eller början med event_id
+        for eid in wvw_rsvp_data.keys():
+            if eid.startswith(event_id) or eid[:8] == event_id:
+                target_event_id = eid
+                break
+        if not target_event_id:
+            await interaction.response.send_message("❌ Ogiltigt event-ID. Använd `/wvw_event list` för att se tillgängliga events.", ephemeral=True)
+            return
+    else:
+        # Om inget event_id anges, använd första tillgängliga
+        if not wvw_rsvp_data:
+            await interaction.response.send_message("❌ Inga WvW-event aktiva.", ephemeral=True)
+            return
+        target_event_id = next(iter(wvw_rsvp_data.keys()))
+        
+    event_data = wvw_rsvp_data[target_event_id]
+    event_name_local = wvw_event_names.get(target_event_id, f"WvW Event {target_event_id[:8]}")
+    
+    attending = {uid: d for uid, d in event_data.items() if d.get("attending")}
+    total = len(event_data)
     attending_count = len(attending)
 
     # per klass
@@ -1911,7 +2039,7 @@ async def show_stats(interaction: discord.Interaction):
         per_role[role] += 1
     role_lines = [f"{k}: {v}" for k, v in per_role.items()] or ["-"]
 
-    embed = discord.Embed(title="📈 Commander Livia – WvW Statistics", color=0x9b59b6)
+    embed = discord.Embed(title=f"📈 Commander Livia – {event_name_local} Statistics", color=0x9b59b6)
     embed.add_field(name="👥 Attending", value=str(attending_count), inline=True)
     embed.add_field(name="🗂️ Totalt registrerade", value=str(total), inline=True)
     embed.add_field(name="⚔️ Roller", value="\n".join(role_lines), inline=False)
@@ -1948,6 +2076,22 @@ class AdminEditStartView(discord.ui.View):
             min_values=1, max_values=1, custom_id="admin_edit_attending"
         )
 
+        # WvW-eventlista (om det finns events)
+        self.wvw_event_select: discord.ui.Select | None = None
+        if wvw_rsvp_data:
+            event_options = []
+            for eid in wvw_rsvp_data.keys():
+                name = wvw_event_names.get(eid, f"WvW Event {eid[:8]}")
+                label = f"{name} ({eid[:8]})"
+                event_options.append(discord.SelectOption(label=label, value=eid))
+            self.wvw_event_select = discord.ui.Select(
+                placeholder="Välj WvW-event (för WvW-edit)...",
+                options=event_options,
+                min_values=1,
+                max_values=1,
+                custom_id="admin_edit_wvw_event"
+            )
+
         async def on_event_select(interaction: discord.Interaction):
             if interaction.user.id != self.editor.id:
                 await interaction.response.send_message("🚫 Endast editor kan använda denna meny.", ephemeral=True)
@@ -1965,41 +2109,59 @@ class AdminEditStartView(discord.ui.View):
 
         self.add_item(self.event_select)
         self.add_item(self.att_select)
-        self.add_item(AdminProceedButton(self.editor, self.target, self.event_select, self.att_select))
+
+        if self.wvw_event_select:
+            async def on_wvw_event(interaction: discord.Interaction):
+                if interaction.user.id != self.editor.id:
+                    await interaction.response.send_message("🚫 Endast editor kan använda denna meny.", ephemeral=True)
+                    return
+                await interaction.response.defer()
+            self.wvw_event_select.callback = on_wvw_event
+            self.add_item(self.wvw_event_select)
+
+        self.add_item(AdminProceedButton(self.editor, self.target, self.event_select, self.att_select, self.wvw_event_select))
 
 
 class AdminProceedButton(discord.ui.Button):
-    def __init__(self, editor: discord.User, target: discord.User, event_select: discord.ui.Select, att_select: discord.ui.Select):
+    def __init__(self, editor: discord.User, target: discord.User, event_select: discord.ui.Select, att_select: discord.ui.Select, wvw_event_select: discord.ui.Select | None):
         super().__init__(label="Fortsätt", style=discord.ButtonStyle.primary)
         self.editor = editor
         self.target = target
         self.event_select = event_select
         self.att_select = att_select
+        self.wvw_event_select = wvw_event_select
 
     async def callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.editor.id:
             await interaction.response.send_message("🚫 Endast editor kan använda denna knapp.", ephemeral=True)
             return
 
-        chosen_event = (self.event_select.values[0] if self.event_select.values else None)
+        chosen_event_type = (self.event_select.values[0] if self.event_select.values else None)
         chosen_att = (self.att_select.values[0] if self.att_select.values else None)
-        if not chosen_event or not chosen_att:
+        if not chosen_event_type or not chosen_att:
             await interaction.response.send_message("⚠️ Välj både eventtyp och attending först.", ephemeral=True)
             return
 
         attending_flag = (chosen_att == "yes")
 
-        if chosen_event == "legacy":
+        if chosen_event_type == "legacy":
             # Gå till Legacy-edit
             await interaction.response.edit_message(
                 content=f"**Legacy RSVP** för {self.target.mention} · Attending: {'✅' if attending_flag else '❌'}\nVälj klass:",
                 view=AdminLegacyClassView(self.editor, self.target, attending_flag)
             )
         else:
-            # Gå till WvW-edit (klass -> spec -> roll)
+            # WvW-edit kräver ett event_id
+            if not wvw_rsvp_data:
+                await interaction.response.send_message("❌ Inga aktiva WvW-event att redigera. Skapa ett med `/wvw_event start` först.", ephemeral=True)
+                return
+            if not self.wvw_event_select or not self.wvw_event_select.values:
+                await interaction.response.send_message("⚠️ Välj ett WvW-event i listan först.", ephemeral=True)
+                return
+            event_id = self.wvw_event_select.values[0]
             await interaction.response.edit_message(
-                content=f"**WvW RSVP** för {self.target.mention} · Attending: {'✅' if attending_flag else '❌'}\nVälj klass:",
-                view=AdminWvWClassView(self.editor, self.target, attending_flag)
+                content=f"**WvW RSVP** för {self.target.mention} · Event: `{event_id[:8]}` · Attending: {'✅' if attending_flag else '❌'}\nVälj klass:",
+                view=AdminWvWClassView(self.editor, self.target, attending_flag, event_id)
             )
 
 # ----- Legacy flow -----
@@ -2073,11 +2235,12 @@ class AdminLegacyRoleView(discord.ui.View):
 
 # ----- WvW flow (class -> spec -> allowed roles) -----
 class AdminWvWClassView(discord.ui.View):
-    def __init__(self, editor: discord.User, target: discord.User, attending: bool):
+    def __init__(self, editor: discord.User, target: discord.User, attending: bool, event_id: str):
         super().__init__(timeout=600)
         self.editor = editor
         self.target = target
         self.attending = attending
+        self.event_id = event_id
 
         self.class_select = discord.ui.Select(
             placeholder="Välj klass...",
@@ -2092,20 +2255,21 @@ class AdminWvWClassView(discord.ui.View):
             klass = self.class_select.values[0]
             specs = list(ELITE_SPECS_BASE.get(klass, {}).keys())
             await interaction.response.edit_message(
-                content=f"**WvW RSVP** för {self.target.mention}\nKlass: **{klass}** · Attending: {'✅' if self.attending else '❌'}\nVälj elite spec:",
-                view=AdminWvWSpecView(self.editor, self.target, self.attending, klass, specs)
+                content=f"**WvW RSVP** för {self.target.mention}\nEvent: `{self.event_id[:8]}` · Klass: **{klass}** · Attending: {'✅' if self.attending else '❌'}\nVälj elite spec:",
+                view=AdminWvWSpecView(self.editor, self.target, self.attending, klass, specs, self.event_id)
             )
 
         self.class_select.callback = on_class
         self.add_item(self.class_select)
 
 class AdminWvWSpecView(discord.ui.View):
-    def __init__(self, editor: discord.User, target: discord.User, attending: bool, klass: str, specs: list[str]):
+    def __init__(self, editor: discord.User, target: discord.User, attending: bool, klass: str, specs: list[str], event_id: str):
         super().__init__(timeout=600)
         self.editor = editor
         self.target = target
         self.attending = attending
         self.klass = klass
+        self.event_id = event_id
 
         self.spec_select = discord.ui.Select(
             placeholder="Välj elite spec...",
@@ -2123,16 +2287,16 @@ class AdminWvWSpecView(discord.ui.View):
 
             await interaction.response.edit_message(
                 content=(f"**WvW RSVP** för {self.target.mention}\n"
-                         f"Klass: **{self.klass}** · Spec: **{spec}** · Attending: {'✅' if self.attending else '❌'}\n"
+                         f"Event: `{self.event_id[:8]}` · Klass: **{self.klass}** · Spec: **{spec}** · Attending: {'✅' if self.attending else '❌'}\n"
                          f"{'Välj roll:' if self.attending else 'Sparar som “inte kommer”…'}"),
-                view=AdminWvWRoleView(self.editor, self.target, self.attending, self.klass, spec, allowed_roles)
+                view=AdminWvWRoleView(self.editor, self.target, self.attending, self.klass, spec, allowed_roles, self.event_id)
             )
 
         self.spec_select.callback = on_spec
         self.add_item(self.spec_select)
 
 class AdminWvWRoleView(discord.ui.View):
-    def __init__(self, editor: discord.User, target: discord.User, attending: bool, klass: str, spec: str, allowed_roles: list[str]):
+    def __init__(self, editor: discord.User, target: discord.User, attending: bool, klass: str, spec: str, allowed_roles: list[str], event_id: str):
         super().__init__(timeout=600)
         self.editor = editor
         self.target = target
@@ -2140,6 +2304,7 @@ class AdminWvWRoleView(discord.ui.View):
         self.klass = klass
         self.spec = spec
         self.allowed_roles = allowed_roles
+        self.event_id = event_id
 
         # Om attending=False tillåter vi inte roll-val; vi avslutar direkt vid spar
         if self.attending:
@@ -2151,7 +2316,7 @@ class AdminWvWRoleView(discord.ui.View):
             self.role_select.callback = self.on_role
             self.add_item(self.role_select)
         else:
-            self.add_item(AdminWvWSaveButton(self.editor, self.target, self.attending, self.klass, self.spec, None))
+            self.add_item(AdminWvWSaveButton(self.editor, self.target, self.attending, self.klass, self.spec, None, self.event_id))
 
     async def on_role(self, interaction: discord.Interaction):
         if interaction.user.id != self.editor.id:
@@ -2164,7 +2329,8 @@ class AdminWvWRoleView(discord.ui.View):
 
     async def _save(self, interaction: discord.Interaction, role: str | None):
         uid = self.target.id
-        wvw_rsvp_data[uid] = {
+        event_data = wvw_rsvp_data.setdefault(self.event_id, {})
+        event_data[uid] = {
             "attending": self.attending,
             "class": self.klass if self.attending else None,
             "elite_spec": self.spec if self.attending else None,
@@ -2175,7 +2341,7 @@ class AdminWvWRoleView(discord.ui.View):
         save_wvw_rsvp_data()
 
         # Gör tunga uppdateringar efter defer
-        await update_all_wvw_summaries(interaction.client)
+        await update_wvw_summary(interaction.client, self.event_id)
 
         det = (f"Klass: **{self.klass}** · Spec: **{self.spec}** · Roll: **{role}**"
                if self.attending else "Markerad som 'kommer inte'")
@@ -2188,7 +2354,7 @@ class AdminWvWRoleView(discord.ui.View):
         )
 
 class AdminWvWSaveButton(discord.ui.Button):
-    def __init__(self, editor: discord.User, target: discord.User, attending: bool, klass: str, spec: str, role: str | None):
+    def __init__(self, editor: discord.User, target: discord.User, attending: bool, klass: str, spec: str, role: str | None, event_id: str):
         super().__init__(label="Spara", style=discord.ButtonStyle.success)
         self.editor = editor
         self.target = target
@@ -2196,6 +2362,7 @@ class AdminWvWSaveButton(discord.ui.Button):
         self.klass = klass
         self.spec = spec
         self.role = role
+        self.event_id = event_id
 
     async def callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.editor.id:
@@ -2203,7 +2370,7 @@ class AdminWvWSaveButton(discord.ui.Button):
             return
         # Defera direkt, spara sedan via samma helper
         await interaction.response.defer()
-        view = AdminWvWRoleView(self.editor, self.target, self.attending, self.klass, self.spec, [])
+        view = AdminWvWRoleView(self.editor, self.target, self.attending, self.klass, self.spec, [], self.event_id)
         await view._save(interaction, self.role)
 
 # ----- Slash command: /rsvp_edit -----
@@ -2223,7 +2390,7 @@ async def rsvp_edit(interaction: discord.Interaction, user: discord.User):
         dm = await interaction.user.create_dm()
         await dm.send(
             content=(f"**RSVP Edit**\nMål: {user.mention}\n"
-                     "Välj eventtyp och attending för att fortsätta:"),
+                     "Välj eventtyp, attending och (för WvW) event i listan för att fortsätta:"),
             view=AdminEditStartView(editor=interaction.user, target=user)
         )
     except Exception as e:
@@ -2238,8 +2405,12 @@ async def rsvp_status(interaction: discord.Interaction):
     legacy_attending = sum(1 for d in rsvp_data.values() if d["attending"])
     legacy_total = len(rsvp_data)
     
-    wvw_attending = sum(1 for d in wvw_rsvp_data.values() if d["attending"])
-    wvw_total = len(wvw_rsvp_data)
+    # Summera alla WvW events
+    wvw_attending = 0
+    wvw_total = 0
+    for event_data in wvw_rsvp_data.values():
+        wvw_attending += sum(1 for d in event_data.values() if d["attending"])
+        wvw_total += len(event_data)
     
     embed = discord.Embed(title="📊 RSVP Status", color=0x2ecc71)
     embed.add_field(name="🎉 Vanligt Event", value=f"✅ Attending: {legacy_attending}\n👥 Totalt: {legacy_total}", inline=True)
@@ -2248,8 +2419,8 @@ async def rsvp_status(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="rsvp_list", description="Visar deltagare. Stöd för både legacy (klass/roll) och WvW (klass · elite spec + roll)")
-@app_commands.describe(only_attending="Visa bara de som tackat ja")
-async def rsvp_list(interaction: discord.Interaction, only_attending: bool = False):
+@app_commands.describe(only_attending="Visa bara de som tackat ja", event_id="ID för specifikt WvW-event (första 8 tecken)")
+async def rsvp_list(interaction: discord.Interaction, only_attending: bool = False, event_id: str | None = None):
     embed = discord.Embed(title="📋 RSVP-listor", color=0x3498db)
     
     # Legacy
@@ -2275,32 +2446,74 @@ async def rsvp_list(interaction: discord.Interaction, only_attending: bool = Fal
             inline=False
         )
     
-    # WvW
-    wvw_attending, wvw_not_attending = [], []
-    for uid, d in wvw_rsvp_data.items():
-        display = d.get("display_name", f"<@{uid}>")
-        if d["attending"]:
-            klass = d.get("class", "Okänd klass")
-            elite_spec = d.get("elite_spec", "")
-            wvw_role = d.get("wvw_role", "Okänd roll")
-            klass_info = f"{klass}" + (f" - {elite_spec}" if elite_spec else "")
-            wvw_attending.append(f"• **{display}** — {klass_info}\n  `{wvw_role}`")
-        else:
-            wvw_not_attending.append(f"• **{display}**")
+    # WvW - antingen specifikt event eller alla
+    if event_id:
+        # Hitta rätt event_id
+        target_event_id = None
+        for eid in wvw_rsvp_data.keys():
+            if eid.startswith(event_id) or eid[:8] == event_id:
+                target_event_id = eid
+                break
+                
+        if target_event_id and target_event_id in wvw_rsvp_data:
+            event_data = wvw_rsvp_data[target_event_id]
+            event_name_local = wvw_event_names.get(target_event_id, f"WvW Event {target_event_id[:8]}")
+            wvw_attending, wvw_not_attending = [], []
+            for uid, d in event_data.items():
+                display = d.get("display_name", f"<@{uid}>")
+                if d["attending"]:
+                    klass = d.get("class", "Okänd klass")
+                    elite_spec = d.get("elite_spec", "")
+                    wvw_role = d.get("wvw_role", "Okänd roll")
+                    klass_info = f"{klass}" + (f" - {elite_spec}" if elite_spec else "")
+                    wvw_attending.append(f"• **{display}** — {klass_info}\n  `{wvw_role}`")
+                else:
+                    wvw_not_attending.append(f"• **{display}**")
 
-    embed.add_field(
-        name="🛡️ WvW Event",
-        value="\n".join(wvw_attending) if wvw_attending else "_Ingen har tackat ja ännu_",
-        inline=False
-    )
-    if not only_attending:
-        embed.add_field(
-            name="❌ WvW Event - Kommer inte",
-            value="\n".join(wvw_not_attending) if wvw_not_attending else "_Ingen har tackat nej ännu_",
-            inline=False
-        )
+            embed.add_field(
+                name=f"🛡️ WvW Event - {event_name_local}",
+                value="\n".join(wvw_attending) if wvw_attending else "_Ingen har tackat ja ännu_",
+                inline=False
+            )
+            if not only_attending:
+                embed.add_field(
+                    name=f"❌ WvW Event - {event_name_local} - Kommer inte",
+                    value="\n".join(wvw_not_attending) if wvw_not_attending else "_Ingen har tackat nej ännu_",
+                    inline=False
+                )
+        else:
+            embed.add_field(name="🛡️ WvW Event", value="❌ Ogiltigt event-ID", inline=False)
+    else:
+        # Visa alla WvW events
+        for eid, event_data in wvw_rsvp_data.items():
+            event_name_local = wvw_event_names.get(eid, f"WvW Event {eid[:8]}")
+            wvw_attending, wvw_not_attending = [], []
+            for uid, d in event_data.items():
+                display = d.get("display_name", f"<@{uid}>")
+                if d["attending"]:
+                    klass = d.get("class", "Okänd klass")
+                    elite_spec = d.get("elite_spec", "")
+                    wvw_role = d.get("wvw_role", "Okänd roll")
+                    klass_info = f"{klass}" + (f" - {elite_spec}" if elite_spec else "")
+                    wvw_attending.append(f"• **{display}** — {klass_info}\n  `{wvw_role}`")
+                else:
+                    wvw_not_attending.append(f"• **{display}**")
+
+            embed.add_field(
+                name=f"🛡️ WvW Event - {event_name_local}",
+                value="\n".join(wvw_attending) if wvw_attending else "_Ingen har tackat ja ännu_",
+                inline=False
+            )
+            if not only_attending:
+                embed.add_field(
+                    name=f"❌ WvW Event - {event_name_local} - Kommer inte",
+                    value="\n".join(wvw_not_attending) if wvw_not_attending else "_Ingen har tackat nej ännu_",
+                    inline=False
+                )
     
-    embed.set_footer(text=f"Totalt: {len(rsvp_data) + len(wvw_rsvp_data)} svar registrerade")
+    total_legacy = len(rsvp_data)
+    total_wvw = sum(len(event_data) for event_data in wvw_rsvp_data.values())
+    embed.set_footer(text=f"Totalt: {total_legacy + total_wvw} svar registrerade")
     await interaction.response.send_message(embed=embed, ephemeral=False)
 
 # ----------------------------
